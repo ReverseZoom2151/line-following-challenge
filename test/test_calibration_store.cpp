@@ -39,7 +39,6 @@ int main() {
 
   {
     TEST("the record fits in the 32U4 EEPROM and leaves room to spare");
-    CHECK(CALIBRATION_EEPROM_ADDR >= 0);
     CHECK(CALIBRATION_RECORD_BYTES > 0);
     CHECK((size_t)(CALIBRATION_EEPROM_ADDR + CALIBRATION_RECORD_BYTES) <= MOCK_EEPROM_SIZE);
     CHECK(COUNT <= CALIBRATION_MAX_SENSORS);

@@ -46,7 +46,16 @@ class LineSensor_c {
 
   public:
 
-    LineSensor_c() {}
+    // The bounds are initialised here, not just in beginCalibration(). The
+    // accessors and reportCalibration() read them whether or not a sweep has
+    // run, and reading uninitialised memory to print it over serial would be
+    // a confusing way to start a bench session.
+    LineSensor_c() {
+      for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+        min_raw[i] = 0;
+        max_raw[i] = 0;
+      }
+    }
 
     // Calibration bounds, exposed so the sweep can actually be checked on a
     // bench. Without these the tuning procedure asks the operator to inspect

@@ -396,7 +396,7 @@ int main() {
     CHECK(nav.state() == NavState::FollowLine);
 
     // whereas the same far sensor with nothing ahead is a corner
-    t = confirm(nav, t, LEFT_BRANCH);
+    confirm(nav, t, LEFT_BRANCH);
     CHECK(nav.state() == NavState::TurnLeft);
   }
 

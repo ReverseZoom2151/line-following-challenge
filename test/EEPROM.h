@@ -46,14 +46,14 @@ class MockEEPROM {
 
   template <typename T>
   const T &put(int address, const T &value) {
-    const uint8_t *src = (const uint8_t *)&value;
+    const uint8_t *src = reinterpret_cast<const uint8_t *>(&value);
     for (size_t i = 0; i < sizeof(T); i++) update(address + (int)i, src[i]);
     return value;
   }
 
   template <typename T>
   T &get(int address, T &value) {
-    uint8_t *dst = (uint8_t *)&value;
+    uint8_t *dst = reinterpret_cast<uint8_t *>(&value);
     for (size_t i = 0; i < sizeof(T); i++) dst[i] = read(address + (int)i);
     return value;
   }
