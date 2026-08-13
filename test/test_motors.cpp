@@ -77,6 +77,29 @@ int main() {
   }
 
   {
+    // stop() used to trap in while(1) and needed a hard reset to escape.
+    // Reaching the assertions below at all proves it now returns.
+    TEST("stop zeroes both channels, returns, and is repeatable");
+    mockReset();
+    Motors_c motors;
+    motors.initialise();
+    motors.setMotorPower(80.0f, 80.0f);
+
+    motors.stop();
+    CHECK_EQ(mockPins[L_PWM_PIN].analogValue, 0);
+    CHECK_EQ(mockPins[R_PWM_PIN].analogValue, 0);
+
+    motors.stop();
+    motors.stop();
+    CHECK_EQ(mockPins[L_PWM_PIN].analogValue, 0);
+    CHECK_EQ(mockPins[R_PWM_PIN].analogValue, 0);
+
+    // and the robot can be driven again afterwards, without a reset
+    motors.setMotorPower(30.0f, 30.0f);
+    CHECK_EQ(mockPins[L_PWM_PIN].analogValue, 30);
+  }
+
+  {
     TEST("driveStraight sets both directions forward");
     mockReset();
     Motors_c motors;

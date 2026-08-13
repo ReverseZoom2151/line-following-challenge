@@ -244,7 +244,9 @@ void joinLine() {
 
 void detectEnd() {
 
-  motors.stopRobot();
+  // the halted state is simply re-entered every iteration: the motors stay
+  // stopped, but the sketch keeps running and can still be commanded
+  motors.stop();
 
 }
 

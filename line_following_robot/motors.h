@@ -48,16 +48,12 @@ class Motors_c {
 
     }
 
-    // stops the robot indefinitely (until hard reset) 
-    void stopRobot() {
+    // zeroes both channels and returns immediately, so the caller keeps
+    // control and can decide to stay halted, or to move again
+    void stop() {
 
       analogWrite(L_PWM_PIN, 0);
       analogWrite(R_PWM_PIN, 0);
-
-      while (1) {
-        Serial.println("Program Halted");
-        delay(500);
-      }
 
     }
 
