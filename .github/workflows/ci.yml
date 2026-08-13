@@ -28,6 +28,14 @@ jobs:
       # Pinned so a new upstream release cannot change what CI builds with,
       # and so the cache key below refers to something real.
       ARDUINO_CLI_VERSION: 1.5.1
+      # Size ceilings for the regression guard below. The target is an
+      # ATmega32U4: 28672 bytes of flash, 2560 bytes of RAM. Current usage
+      # is about 8670 bytes flash and 243 bytes RAM, so these ceilings leave
+      # deliberately generous headroom above that. They are not a tight
+      # budget, they exist only to catch a sudden regression (for example a
+      # library pulled in by accident, or a debug feature left enabled).
+      FLASH_CEILING_BYTES: 20000
+      RAM_CEILING_BYTES: 1200
     steps:
       - uses: actions/checkout@v5
 
@@ -73,6 +81,78 @@ jobs:
       - name: Compile sketch
         run: |
           arduino-cli compile --fqbn pololu-a-star:avr:a-star32U4 line_following_robot
+
+      # arduino-cli --json exposes the linked section sizes directly, so
+      # this is parsed with jq (preinstalled on ubuntu-latest) rather than
+      # scraping the human-readable "Sketch uses N bytes..." log line.
+      # Confirmed against a real arduino-cli 1.5.1 compile that the JSON
+      # shape is builder_result.executable_sections_size, a list of
+      # {name, size, max_size} objects: "text" is flash, "data" is RAM.
+      - name: Check flash and RAM usage
+        run: |
+          arduino-cli compile --fqbn pololu-a-star:avr:a-star32U4 line_following_robot --json > compile_result.json
+
+          FLASH_BYTES=$(jq '.builder_result.executable_sections_size[] | select(.name == "text") | .size' compile_result.json)
+          RAM_BYTES=$(jq '.builder_result.executable_sections_size[] | select(.name == "data") | .size' compile_result.json)
+
+          if [ -z "$FLASH_BYTES" ] || [ -z "$RAM_BYTES" ]; then
+            echo "Could not read flash/RAM sizes from arduino-cli JSON output, failing closed."
+            cat compile_result.json
+            exit 1
+          fi
+
+          FLASH_PCT=$(( FLASH_BYTES * 100 / 28672 ))
+          RAM_PCT=$(( RAM_BYTES * 100 / 2560 ))
+
+          echo "Flash usage: ${FLASH_BYTES} bytes of 28672 (${FLASH_PCT}% of device, ceiling ${FLASH_CEILING_BYTES})"
+          echo "RAM usage:   ${RAM_BYTES} bytes of 2560 (${RAM_PCT}% of device, ceiling ${RAM_CEILING_BYTES})"
+
+          FAILED=0
+          if [ "$FLASH_BYTES" -gt "$FLASH_CEILING_BYTES" ]; then
+            echo "Flash usage ${FLASH_BYTES} bytes exceeds the regression ceiling of ${FLASH_CEILING_BYTES} bytes."
+            FAILED=1
+          fi
+          if [ "$RAM_BYTES" -gt "$RAM_CEILING_BYTES" ]; then
+            echo "RAM usage ${RAM_BYTES} bytes exceeds the regression ceiling of ${RAM_CEILING_BYTES} bytes."
+            FAILED=1
+          fi
+          exit $FAILED
+
+  # Run static analysis over the firmware and host test sources. This does
+  # not compile anything, it only looks for likely bugs and style issues
+  # that cppcheck can spot without the Arduino toolchain.
+  static-analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install cppcheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+
+      # Arduino headers (Arduino.h and friends) are not available outside
+      # the Arduino toolchain, so cppcheck cannot resolve them and would
+      # otherwise flood the log with missingInclude noise on every file
+      # that includes them. unusedFunction is also suppressed because this
+      # is a library-style, header-heavy codebase where public methods are
+      # legitimately never called from within the analysed set alone.
+      # This suppression list is deliberately permissive to start: it is
+      # meant to catch real issues without failing on false positives, and
+      # should be tightened over time as the codebase and cppcheck's
+      # understanding of it improve.
+      - name: Run cppcheck
+        run: |
+          cppcheck --enable=warning,style,performance,portability \
+            --inline-suppr \
+            --error-exitcode=1 \
+            --std=c++17 \
+            -I line_following_robot -I test \
+            --suppress=missingInclude \
+            --suppress=missingIncludeSystem \
+            --suppress=unusedFunction \
+            line_following_robot test
 
   # Build and run the C++ host tests. These exercise the sensor, motor, PID
   # and navigator logic on the runner's own g++ toolchain rather than on
