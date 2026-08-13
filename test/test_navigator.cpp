@@ -82,7 +82,7 @@ int main() {
     Motors_c motors;
     Navigator_c nav;
     sensors.begin();
-    motors.initialise();
+    motors.begin();
     nav.begin(&sensors, &motors);
 
     CHECK(nav.state() == NavState::Calibrate);
@@ -109,7 +109,7 @@ int main() {
     Motors_c motors;
     Navigator_c nav;
     sensors.begin();
-    motors.initialise();
+    motors.begin();
     nav.begin(&sensors, &motors);
 
     uint32_t t = runCalibration(nav, 0);
@@ -134,7 +134,7 @@ int main() {
     Motors_c motors;
     Navigator_c nav;
     sensors.begin();
-    motors.initialise();
+    motors.begin();
     nav.begin(&sensors, &motors);
 
     uint32_t t = driveToFollowLine(nav, 0);
@@ -158,7 +158,7 @@ int main() {
     Motors_c motors;
     Navigator_c nav;
     sensors.begin();
-    motors.initialise();
+    motors.begin();
     nav.begin(&sensors, &motors);
 
     uint32_t t = driveToFollowLine(nav, 0);
@@ -187,7 +187,7 @@ int main() {
     Motors_c motors;
     Navigator_c nav;
     sensors.begin();
-    motors.initialise();
+    motors.begin();
     nav.begin(&sensors, &motors);
 
     uint32_t t = driveToFollowLine(nav, 0);
@@ -236,7 +236,7 @@ int main() {
     Motors_c motors;
     Navigator_c nav;
     sensors.begin();
-    motors.initialise();
+    motors.begin();
     nav.begin(&sensors, &motors);
 
     uint32_t t = driveToFollowLine(nav, 0);
@@ -266,7 +266,7 @@ int main() {
     Motors_c motors;
     Navigator_c nav;
     sensors.begin();
-    motors.initialise();
+    motors.begin();
     nav.begin(&sensors, &motors);
 
     uint32_t t = driveToFollowLine(nav, 0);
@@ -292,7 +292,7 @@ int main() {
     Motors_c motors;
     Navigator_c nav;
     sensors.begin();
-    motors.initialise();
+    motors.begin();
     nav.begin(&sensors, &motors);
 
     uint32_t t = driveToFollowLine(nav, 0);
@@ -313,7 +313,7 @@ int main() {
     Motors_c motors;
     Navigator_c nav;
     sensors.begin();
-    motors.initialise();
+    motors.begin();
     nav.begin(&sensors, &motors);
 
     uint32_t t = driveToFollowLine(nav, 0);
@@ -345,7 +345,7 @@ int main() {
     Motors_c motors;
     Navigator_c nav;
     sensors.begin();
-    motors.initialise();
+    motors.begin();
     nav.begin(&sensors, &motors);
 
     uint32_t t = driveToFollowLine(nav, 0);
@@ -376,7 +376,7 @@ int main() {
     Motors_c motors;
     Navigator_c nav;
     sensors.begin();
-    motors.initialise();
+    motors.begin();
     nav.begin(&sensors, &motors);
 
     uint32_t t = driveToFollowLine(nav, 0);
@@ -407,7 +407,7 @@ int main() {
     Motors_c motorsL;
     Navigator_c navL;
     sensorsL.begin();
-    motorsL.initialise();
+    motorsL.begin();
     navL.begin(&sensorsL, &motorsL);
     uint32_t tl = driveToFollowLine(navL, 0);
     tl = confirm(navL, tl, LEFT_BRANCH);
@@ -417,7 +417,7 @@ int main() {
     Motors_c motorsR;
     Navigator_c navR;
     sensorsR.begin();
-    motorsR.initialise();
+    motorsR.begin();
     navR.begin(&sensorsR, &motorsR);
     uint32_t tr = driveToFollowLine(navR, 0);
     tr = confirm(navR, tr, RIGHT_BRANCH);

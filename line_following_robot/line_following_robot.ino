@@ -1,307 +1,34 @@
-#include "motors.h"
-#include "linesensors.h"
+// Line following robot for the Pololu 3Pi+ 32U4.
+//
+// The sketch is wiring only: one sensor read per iteration, handed to the
+// navigator, which owns every decision. All pins and tuning constants live in
+// config.h, and nothing here blocks, so the control loop runs as fast as the
+// sensors can be read.
 
-#define SENSOR_THRESHOLD 1000 
-#define STATE_JOIN_LINE 0
-#define STATE_FOLLOW_LINE 1
-#define STATE_TURN_LEFT 2
-#define STATE_TURN_RIGHT 3
-#define STATE_CROSSROADS 4
-#define STATE_REDISCOVER_LINE 5
-#define STATE_DETECT_END 6
+#include "config.h"
+#include "linesensors.h"
+#include "motors.h"
+#include "navigator.h"
 
 LineSensor_c line_sensors;
 Motors_c motors;
-
-const unsigned long maxLineFollowDuration = 2000;
-const int TRIGGER_DELAY = 200;   // delay in milliseconds
-const float BiasPWM = 30.0; // starts with a positive forward bias
-const float MaxTurnPWM = 20.0; 
-int state = 0;
-int lineDetectionCount = 0;
-unsigned long lastTriggerTime = 0;  // tracks when the last trigger occurred
-unsigned long lineFollowingStartTime = 0;  // start time when following the line
-
-
-bool lineDetected() {
-
-  unsigned long leftSensorReading = line_sensors.readLineSensor(1); // DN2
-  unsigned long middleSensorReading = line_sensors.readLineSensor(2); // DN3
-  unsigned long rightSensorReading = line_sensors.readLineSensor(3); // DN4
-
-  // reads all three line sensors and determines if any sensor detects the line
-  return ((leftSensorReading >= SENSOR_THRESHOLD) || (middleSensorReading >= SENSOR_THRESHOLD) || (rightSensorReading >= SENSOR_THRESHOLD));
-
-}
-
-float weightedMeasurement() {
-
-  unsigned long leftSensorReading = line_sensors.readLineSensor(1); // DN2
-  unsigned long rightSensorReading = line_sensors.readLineSensor(3); // DN4
-
-  unsigned long sum = leftSensorReading + rightSensorReading;
-
-  // with both sensors off the line the sum is zero, and dividing by it
-  // produced a NaN steering term that propagated straight into the PWM
-  if (sum == 0) return 0.0;
-
-  float leftNormalized = (float)leftSensorReading / sum;
-  float rightNormalized = (float)rightSensorReading / sum;
-
-  float leftWeighted = 2.0 * leftNormalized;
-  float rightWeighted = 2.0 * rightNormalized;
-
-  float W = rightWeighted - leftWeighted;
-  // float W = leftWeighted - rightWeighted;
-
-  // Serial.print("Weighted Measurement (W): ");
-  // Serial.println(W); 
-
-  return W;
-
-}
-
-void followLine() {
-
-  unsigned long farLeftSensorReading = line_sensors.readLineSensor(0); // DN1
-  unsigned long leftSensorReading = line_sensors.readLineSensor(1); // DN2
-  unsigned long middleSensorReading = line_sensors.readLineSensor(2); // DN3
-  unsigned long rightSensorReading = line_sensors.readLineSensor(3); // DN4
-  unsigned long farRightSensorReading = line_sensors.readLineSensor(4); // DN5
-
-  if (lineDetected()) { 
-
-    float W = weightedMeasurement();
-    float LeftPWM = BiasPWM + (MaxTurnPWM * W);
-    float RightPWM = BiasPWM - (MaxTurnPWM * W);
-    
-    motors.setMotorPower(LeftPWM, RightPWM);
-  
-  }
-
-  if (millis() - lineFollowingStartTime > maxLineFollowDuration && !lineDetected()) {
-
-    state = STATE_DETECT_END; 
-    return;
-
-  } else if (millis() - lineFollowingStartTime < maxLineFollowDuration && !lineDetected()) {
-    
-    state = STATE_REDISCOVER_LINE;
-
-  }
-
-  if (farLeftSensorReading >= SENSOR_THRESHOLD && lineDetected()) {
-
-    state = STATE_TURN_LEFT;
-
-  } 
-  
-  if (farRightSensorReading >= SENSOR_THRESHOLD && !lineDetected()) {
-
-    state = STATE_TURN_RIGHT;
-
-  } 
-
-  if (farLeftSensorReading >= SENSOR_THRESHOLD && farRightSensorReading >= SENSOR_THRESHOLD && !lineDetected()) {
-
-    state = STATE_CROSSROADS;
-
-  } 
-
-}
-
-void turnLeft() {
-
-  unsigned long farLeftSensorReading = line_sensors.readLineSensor(0); // DN1
-  unsigned long leftSensorReading = line_sensors.readLineSensor(1); // DN2
-  unsigned long middleSensorReading = line_sensors.readLineSensor(2); // DN3
-  unsigned long rightSensorReading = line_sensors.readLineSensor(3); // DN4
-  unsigned long farRightSensorReading = line_sensors.readLineSensor(4); // DN5
-
-  // the two cases are tested most specific first, and are exclusive: as a
-  // plain pair of ifs the second was a superset of the first, so both fired
-  // and the robot turned left twice
-  if (farLeftSensorReading >= SENSOR_THRESHOLD && farRightSensorReading >= SENSOR_THRESHOLD && lineDetected()) {
-
-    // clears the junction before committing to the corner
-    motors.driveStraight(BiasPWM);
-    delay(225);
-    motors.spinLeft(BiasPWM);
-    delay(250);
-
-  } else if (farLeftSensorReading >= SENSOR_THRESHOLD && lineDetected()) {
-
-    // executes a sharp left turn for corners (90 degrees)
-    motors.spinLeft(BiasPWM);
-    delay(250);
-
-  }
-
-  lineFollowingStartTime = millis();
-
-  state = STATE_FOLLOW_LINE;
-
-}
-
-void turnRight() {
-
-  unsigned long farLeftSensorReading = line_sensors.readLineSensor(0); // DN1
-  unsigned long leftSensorReading = line_sensors.readLineSensor(1); // DN2
-  unsigned long middleSensorReading = line_sensors.readLineSensor(2); // DN3
-  unsigned long rightSensorReading = line_sensors.readLineSensor(3); // DN4
-  unsigned long farRightSensorReading = line_sensors.readLineSensor(4); // DN5
-
-  if (farLeftSensorReading >= SENSOR_THRESHOLD) {
-
-    // the line has gone left, not right: hand over without driving
-    state = STATE_TURN_LEFT;
-    return;
-
-  }
-
-  motors.spinRight(BiasPWM);
-  delay(250);
-
-  lineFollowingStartTime = millis();
-
-  state = STATE_FOLLOW_LINE;
-
-}
-
-void rediscoverLine() {
-
-  unsigned long farLeftSensorReading = line_sensors.readLineSensor(0); // DN1
-  unsigned long leftSensorReading = line_sensors.readLineSensor(1); // DN2
-  unsigned long middleSensorReading = line_sensors.readLineSensor(2); // DN3
-  unsigned long rightSensorReading = line_sensors.readLineSensor(3); // DN4
-  unsigned long farRightSensorReading = line_sensors.readLineSensor(4); // DN5
-
-  if (!lineDetected() && farLeftSensorReading < SENSOR_THRESHOLD && farRightSensorReading < SENSOR_THRESHOLD) {
-
-    // drives straight for 0.4 seconds
-    motors.driveStraight(BiasPWM);  
-    // pauses for 400 milliseconds (0.4 seconds)
-    delay(400);
-    // spins clockwise 
-    motors.spinLeft(32);
-    delay(1000);  
-    // resumes straight driving (no timer needed)   
-    motors.driveStraight(BiasPWM); 
-
-  } 
-  
-  if (lineDetected() || farLeftSensorReading >= SENSOR_THRESHOLD || farRightSensorReading >= SENSOR_THRESHOLD) {
-
-    lineFollowingStartTime = millis();  
-    state = STATE_FOLLOW_LINE;
-  
-  }
-
-}
-
-void crossroads() {
-
-  unsigned long farLeftSensorReading = line_sensors.readLineSensor(0); // DN1
-  unsigned long leftSensorReading = line_sensors.readLineSensor(1); // DN2
-  unsigned long middleSensorReading = line_sensors.readLineSensor(2); // DN3
-  unsigned long rightSensorReading = line_sensors.readLineSensor(3); // DN4
-  unsigned long farRightSensorReading = line_sensors.readLineSensor(4); // DN5
-
-  if (farLeftSensorReading >= SENSOR_THRESHOLD && farRightSensorReading >= SENSOR_THRESHOLD && !lineDetected()) {
-
-    motors.spinLeft(BiasPWM);
-    delay(250);
-    
-  }
-
-  lineFollowingStartTime = millis();  
-  state = STATE_FOLLOW_LINE;
-
-}
-
-void joinLine() {
-
-  unsigned long farLeftSensorReading = line_sensors.readLineSensor(0); // DN1
-  unsigned long leftSensorReading = line_sensors.readLineSensor(1); // DN2
-  unsigned long middleSensorReading = line_sensors.readLineSensor(2); // DN3
-  unsigned long rightSensorReading = line_sensors.readLineSensor(3); // DN4
-  unsigned long farRightSensorReading = line_sensors.readLineSensor(4); // DN5
-
-  motors.driveStraight(BiasPWM);
-
-  if (lineDetected() && millis() - lastTriggerTime > TRIGGER_DELAY) {
-
-    lineDetectionCount++;
-    lastTriggerTime = millis();
-  
-  } 
-
-  if (lineDetectionCount >= 2) {
-    
-    lineFollowingStartTime = millis();
-    state = STATE_FOLLOW_LINE;
-    lineDetectionCount = 0; 
-    lastTriggerTime = 0;
-    
-  }
-
-}
-
-void detectEnd() {
-
-  // the halted state is simply re-entered every iteration: the motors stay
-  // stopped, but the sketch keeps running and can still be commanded
-  motors.stop();
-
-}
-
-void updateState() {
-
-  if (state == STATE_JOIN_LINE) {
-
-    joinLine();
-
-  } else if (state == STATE_FOLLOW_LINE) {
-
-    followLine();
-
-  } else if (state == STATE_TURN_LEFT) {
-
-    turnLeft();
-
-  } else if (state == STATE_TURN_RIGHT) {
-    
-    turnRight();
-    
-  } else if (state == STATE_CROSSROADS) {
-
-    crossroads();
-
-  } else if (state == STATE_REDISCOVER_LINE) {
-
-    rediscoverLine();
-
-  } else if (state == STATE_DETECT_END) {
-
-    detectEnd();
-
-  }
-
-}
+Navigator_c navigator;
 
 void setup() {
 
-  motors.initialise();
+  motors.begin();
   line_sensors.begin();
-
-  Serial.begin(9600);
-  delay(1500);
-  Serial.println("***RESET***");
+  navigator.begin(&line_sensors, &motors);
 
 }
 
 void loop() {
 
-  updateState();
+  // one snapshot of all five sensors, taken at one instant, so every
+  // decision the navigator makes this iteration agrees with every other
+  SensorSnapshot snapshot;
+  line_sensors.readAll(snapshot);
+
+  navigator.update(millis(), snapshot);
 
 }

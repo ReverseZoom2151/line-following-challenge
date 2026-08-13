@@ -11,7 +11,7 @@ class Motors_c {
 
     }
 
-    void initialise() {
+    void begin() {
 
       // sets all the motor pins as outputs
       pinMode(L_PWM_PIN, OUTPUT);

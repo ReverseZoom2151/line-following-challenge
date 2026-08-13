@@ -16,7 +16,7 @@ int main() {
     TEST("forward demand drives both channels forward");
     mockReset();
     Motors_c motors;
-    motors.initialise();
+    motors.begin();
     motors.setMotorPower(30.0f, 30.0f);
 
     CHECK_EQ(mockPins[L_DIR_PIN].digitalValue, FWD);
@@ -29,7 +29,7 @@ int main() {
     TEST("negative demand flips direction and writes magnitude");
     mockReset();
     Motors_c motors;
-    motors.initialise();
+    motors.begin();
     motors.setMotorPower(-40.0f, 40.0f);
 
     CHECK_EQ(mockPins[L_DIR_PIN].digitalValue, REV);
@@ -42,7 +42,7 @@ int main() {
     TEST("demand beyond the PWM range is clamped");
     mockReset();
     Motors_c motors;
-    motors.initialise();
+    motors.begin();
     motors.setMotorPower(1000.0f, -1000.0f);
 
     CHECK_EQ(mockPins[L_PWM_PIN].analogValue, 255);
@@ -55,7 +55,7 @@ int main() {
     TEST("zero demand counts as forward and writes zero duty");
     mockReset();
     Motors_c motors;
-    motors.initialise();
+    motors.begin();
     motors.setMotorPower(0.0f, 0.0f);
 
     CHECK_EQ(mockPins[L_PWM_PIN].analogValue, 0);
@@ -65,10 +65,10 @@ int main() {
   }
 
   {
-    TEST("initialise configures all four motor pins as outputs");
+    TEST("begin configures all four motor pins as outputs");
     mockReset();
     Motors_c motors;
-    motors.initialise();
+    motors.begin();
 
     CHECK_EQ(mockPins[L_PWM_PIN].mode, OUTPUT);
     CHECK_EQ(mockPins[R_PWM_PIN].mode, OUTPUT);
@@ -82,7 +82,7 @@ int main() {
     TEST("stop zeroes both channels, returns, and is repeatable");
     mockReset();
     Motors_c motors;
-    motors.initialise();
+    motors.begin();
     motors.setMotorPower(80.0f, 80.0f);
 
     motors.stop();
@@ -103,7 +103,7 @@ int main() {
     TEST("driveStraight sets both directions forward");
     mockReset();
     Motors_c motors;
-    motors.initialise();
+    motors.begin();
     motors.driveStraight(30);
 
     CHECK_EQ(mockPins[L_DIR_PIN].digitalValue, FWD);
