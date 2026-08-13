@@ -126,12 +126,14 @@ void turnLeft() {
     // clears the junction before committing to the corner
     motors.driveStraight(BiasPWM);
     delay(225);
-    motors.spinLeft(BiasPWM, 250);
+    motors.spinLeft(BiasPWM);
+    delay(250);
 
   } else if (farLeftSensorReading >= SENSOR_THRESHOLD && lineDetected()) {
 
     // executes a sharp left turn for corners (90 degrees)
-    motors.spinLeft(BiasPWM, 250);
+    motors.spinLeft(BiasPWM);
+    delay(250);
 
   }
 
@@ -157,7 +159,8 @@ void turnRight() {
 
   }
 
-  motors.spinRight(BiasPWM, 250);
+  motors.spinRight(BiasPWM);
+  delay(250);
 
   lineFollowingStartTime = millis();
 
@@ -180,7 +183,8 @@ void rediscoverLine() {
     // pauses for 400 milliseconds (0.4 seconds)
     delay(400);
     // spins clockwise 
-    motors.spin180(32);  
+    motors.spinLeft(32);
+    delay(1000);  
     // resumes straight driving (no timer needed)   
     motors.driveStraight(BiasPWM); 
 
@@ -205,7 +209,8 @@ void crossroads() {
 
   if (farLeftSensorReading >= SENSOR_THRESHOLD && farRightSensorReading >= SENSOR_THRESHOLD && !lineDetected()) {
 
-    motors.spinLeft(BiasPWM, 250);
+    motors.spinLeft(BiasPWM);
+    delay(250);
     
   }
 

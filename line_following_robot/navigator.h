@@ -113,7 +113,7 @@ class Navigator_c {
       }
 
       // sweeps the sensor bar across the line and the background
-      motors->spinRight(BASE_SPEED_PWM, 0);
+      motors->spinRight(BASE_SPEED_PWM);
 
     }
 
@@ -166,19 +166,30 @@ class Navigator_c {
 
     }
 
-    void runTurnLeft(const SensorSnapshot &s) {
+    // Turns are ticked, not blocked on. The robot keeps its eyes open for the
+    // whole turn, so it stops as soon as the line comes back under the centre
+    // rather than always spinning for a fixed 250ms and hoping.
+    void runTurn(bool leftwards, const SensorSnapshot &s) {
 
-      (void)s;
-      motors->spinLeft(BASE_SPEED_PWM, 250);
-      enter(NavState::FollowLine);
+      if (leftwards) motors->spinLeft(BASE_SPEED_PWM);
+      else motors->spinRight(BASE_SPEED_PWM);
 
-    }
+      uint32_t spinning_for = elapsedInState();
 
-    void runTurnRight(const SensorSnapshot &s) {
+      // the line the turn started on is still under the sensors for the first
+      // moments, so reacquisition is not looked for until the robot has
+      // actually swung away from it
+      if (spinning_for < TURN_SETTLE_MS) return;
 
-      (void)s;
-      motors->spinRight(BASE_SPEED_PWM, 250);
-      enter(NavState::FollowLine);
+      if (sensors->onLine(s)) {
+        enter(NavState::FollowLine);
+        return;
+      }
+
+      if (spinning_for >= TURN_TIMEOUT_MS) {
+        // swung right round without finding anything: this was not a corner
+        enter(NavState::Rediscover);
+      }
 
     }
 
@@ -248,8 +259,8 @@ class Navigator_c {
         case NavState::Calibrate:  runCalibrate(s);  break;
         case NavState::JoinLine:   runJoinLine(s);   break;
         case NavState::FollowLine: runFollowLine(s); break;
-        case NavState::TurnLeft:   runTurnLeft(s);   break;
-        case NavState::TurnRight:  runTurnRight(s);  break;
+        case NavState::TurnLeft:   runTurn(true, s);  break;
+        case NavState::TurnRight:  runTurn(false, s); break;
         case NavState::Crossroads: runCrossroads(s); break;
         case NavState::Rediscover: runRediscover(s); break;
         case NavState::Halted:     runHalted();      break;

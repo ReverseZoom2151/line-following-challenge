@@ -165,10 +165,60 @@ int main() {
   }
 
   {
-    // DEFECT: the turn states spin with a blocking pause, so update() does
-    // not return for 250ms and the robot is blind for the whole turn. The
-    // clock jumping inside a single update is the proof.
-    TEST("DEFECT: a far sensor turn blocks for the duration of the spin");
+    // A turn must not block: update() returns at once and the turn is ticked
+    // across many iterations, so the sensors are read throughout it.
+    TEST("a turn is ticked, not blocked on, and exits on reacquisition");
+    mockReset();
+    LineSensor_c sensors;
+    Motors_c motors;
+    Navigator_c nav;
+    sensors.begin();
+    motors.initialise();
+    nav.begin(&sensors, &motors);
+
+    uint32_t t = driveToFollowLine(nav, 0);
+
+    t += 10;
+    nav.update(t, LEFT_BRANCH);
+    CHECK(nav.state() == NavState::TurnLeft);
+    uint32_t turn_started = t;
+
+    // spinning left, with no time lost inside update()
+    uint32_t before = micros();
+    t += 10;
+    nav.update(t, BLANK);
+    CHECK_EQ(micros() - before, 0);
+    CHECK(nav.state() == NavState::TurnLeft);
+    CHECK_EQ(mockPins[L_DIR_PIN].digitalValue, REV);
+    CHECK_EQ(mockPins[R_DIR_PIN].digitalValue, FWD);
+
+    // the line it started on cannot end the turn straight away
+    t += 10;
+    nav.update(t, CENTRED);
+    CHECK(nav.state() == NavState::TurnLeft);
+
+    // past the settle window, the line coming back ends the turn at once,
+    // well before the timeout would have
+    t += TURN_SETTLE_MS;
+    nav.update(t, CENTRED);
+    CHECK(nav.state() == NavState::FollowLine);
+    CHECK((t - turn_started) < TURN_TIMEOUT_MS);
+
+    // and the same on the other side
+    t += 10;
+    nav.update(t, RIGHT_BRANCH);
+    CHECK(nav.state() == NavState::TurnRight);
+    t += 10;
+    nav.update(t, BLANK);
+    CHECK_EQ(mockPins[L_DIR_PIN].digitalValue, FWD);
+    CHECK_EQ(mockPins[R_DIR_PIN].digitalValue, REV);
+    t += TURN_SETTLE_MS;
+    nav.update(t, CENTRED);
+    CHECK(nav.state() == NavState::FollowLine);
+  }
+
+  {
+    TEST("a turn that never reacquires the line exits on the timeout");
     mockReset();
     LineSensor_c sensors;
     Motors_c motors;
@@ -183,21 +233,19 @@ int main() {
     nav.update(t, LEFT_BRANCH);
     CHECK(nav.state() == NavState::TurnLeft);
 
-    uint32_t before = micros();
-    t += 10;
-    nav.update(t, LEFT_BRANCH);
-    CHECK_EQ(micros() - before, 250000);
-    CHECK(nav.state() == NavState::FollowLine);
+    uint32_t turn_started = t;
 
-    t += 10;
-    nav.update(t, RIGHT_BRANCH);
-    CHECK(nav.state() == NavState::TurnRight);
+    // spins and spins, finding nothing
+    for (int i = 0; i < 100 && nav.state() == NavState::TurnLeft; i++) {
+      t += 20;
+      nav.update(t, BLANK);
+    }
 
-    before = micros();
-    t += 10;
-    nav.update(t, RIGHT_BRANCH);
-    CHECK_EQ(micros() - before, 250000);
-    CHECK(nav.state() == NavState::FollowLine);
+    CHECK(nav.state() != NavState::TurnLeft);
+    CHECK(nav.state() == NavState::Rediscover);
+    CHECK((t - turn_started) >= TURN_TIMEOUT_MS);
+    // it gave up on the timeout rather than spinning indefinitely
+    CHECK((t - turn_started) < TURN_TIMEOUT_MS + 100);
   }
 
   {

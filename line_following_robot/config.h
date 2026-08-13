@@ -53,6 +53,9 @@ static const float PID_INTEGRAL_LIMIT = 50.0f;
 
 // ------------------------------------------------------------- timings
 
+// A turn ignores the line it started on for this long, so it cannot exit
+// immediately on the sensors it entered with.
+static const uint32_t TURN_SETTLE_MS        = 150;
 static const uint32_t TURN_TIMEOUT_MS       = 1200;
 static const uint32_t REDISCOVER_TIMEOUT_MS = 2000;
 static const uint32_t CALIBRATION_MS        = 3000;

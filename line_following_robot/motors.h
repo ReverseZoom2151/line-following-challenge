@@ -50,7 +50,7 @@ class Motors_c {
 
     }
 
-    void driveStraight(int speed) {
+    void driveStraight(const float speed) {
 
       // sets directions for forward movement
       digitalWrite(L_DIR_PIN, FWD);
@@ -62,39 +62,26 @@ class Motors_c {
       
     }
 
-    void spin180(const float speed) {
+    // Spins on the spot. Like every other method here it commands the
+    // motors and returns at once: how long to spin for is the caller's
+    // decision, taken between sensor readings rather than inside a delay.
+    void spinLeft(const float speed) {
 
-      digitalWrite(L_DIR_PIN, REV);  
+      digitalWrite(L_DIR_PIN, REV);
       digitalWrite(R_DIR_PIN, FWD);
 
-      analogWrite(L_PWM_PIN, speed); 
+      analogWrite(L_PWM_PIN, speed);
       analogWrite(R_PWM_PIN, speed);
-
-      delay(1000);
 
     }
 
-    void spinLeft(const float speed, int pause) {
+    void spinRight(const float speed) {
 
-      digitalWrite(L_DIR_PIN, REV);  
-      digitalWrite(R_DIR_PIN, FWD);
-
-      analogWrite(L_PWM_PIN, speed); 
-      analogWrite(R_PWM_PIN, speed);
-
-      delay(pause);
-
-    }
-
-    void spinRight(const float speed, int pause) {
-
-      digitalWrite(L_DIR_PIN, FWD);  
+      digitalWrite(L_DIR_PIN, FWD);
       digitalWrite(R_DIR_PIN, REV);
 
-      analogWrite(L_PWM_PIN, speed); 
+      analogWrite(L_PWM_PIN, speed);
       analogWrite(R_PWM_PIN, speed);
-
-      delay(pause);
 
     }
 
