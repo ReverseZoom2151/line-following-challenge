@@ -27,9 +27,10 @@ document asks you to edit logic. The constants referenced here are:
 | `LINE_PRESENT_THRESHOLD` | 200 | Activation floor for "a line is here" |
 | `JUNCTION_THRESHOLD` | 600 | Far-sensor activation that counts as a junction |
 | `NORMALISED_MAX` | 1000 | Full scale after calibration |
-| `SENSOR_TIMEOUT_US` | 2500 | Per-sensor discharge give-up time |
+| `SENSOR_TIMEOUT_US` | 2500 | Discharge give-up time, and the budget for the whole five-sensor pass |
 | `CALIBRATION_MS` | 3000 | Duration of the calibration sweep |
 | `TURN_TIMEOUT_MS` | 1200 | Maximum time spent in a turn state |
+| `TURN_SETTLE_MS` | 150 | How long a turn ignores the line it started on |
 | `REDISCOVER_TIMEOUT_MS` | 2000 | Maximum time spent hunting for a lost line |
 
 ### Why the integral and derivative gains ship at zero
@@ -85,7 +86,13 @@ window, every sensor sees both a black line and a white surface.
   five sensors, including DN1 and DN5, pass over black and over white. A single
   slow sweep in each direction is usually enough. Rotating in place over the
   line works too, provided the far sensors actually cross it.
-- Afterwards, inspect the recorded minima and maxima for each sensor.
+- Afterwards, inspect the recorded minima and maxima for each sensor. Call
+  `sensors.reportCalibration()` once from `setup()` after the sweep, or from a
+  serial command, and read the result over the serial monitor at 9600 baud. It
+  prints one comma-separated row per sensor: index, minimum, maximum, span.
+  `calibrationMin(i)` and `calibrationMax(i)` return the same values if you
+  would rather format them yourself. Do not call either from `loop()`:
+  transmitting takes long enough to blind the robot between readings.
 - Sanity checks: the maximum must be meaningfully above the minimum for every
   sensor (a near-equal pair means that sensor never saw one of the two
   surfaces); no maximum should sit at `SENSOR_TIMEOUT_US`, which means the
@@ -167,18 +174,27 @@ The remaining constants are durations, and they can only be set by watching the
 robot at the speed you settled on in steps 4 and 5.
 
 **Turns.** `TURN_TIMEOUT_MS` (1200 ms) is a safety bound, not the expected turn
-duration. A turn state exits as soon as the line is reacquired, so in normal
-operation the timeout should never fire.
+duration. A turn ignores the line for its first `TURN_SETTLE_MS` (150 ms),
+because the line it started on is still under the sensors and would otherwise
+end the turn immediately; after that window it exits on the first reacquisition.
+In normal operation the timeout should never fire.
 
 - Time how long a 90 degree corner actually takes at your base speed. Do this
   from the outside: start a stopwatch as the robot commits to the turn and stop
   it as it straightens up.
 - Set `TURN_TIMEOUT_MS` to comfortably more than that, roughly double, so that
   a normal turn always completes on line reacquisition.
-- If turns are ending on the timeout instead of on reacquisition, the robot
-  will consistently overshoot corners. Either the timeout is too short or the
-  reacquisition condition is not firing; check the far-sensor activation
-  against `JUNCTION_THRESHOLD` before changing the timing.
+- Check `TURN_SETTLE_MS` against that measured time. It must be short enough
+  that the robot has not already swung onto the new line before the window
+  closes, or the turn will overshoot every corner by a fixed amount. If turns
+  overshoot consistently and reducing the turn speed does not help, this is the
+  constant to suspect.
+- If turns end on the timeout instead of on reacquisition, the robot drops into
+  `Rediscover` rather than resuming line following, which looks like a hesitation
+  after every corner. Either the timeout is too short, the settle window is
+  swallowing the reacquisition, or the centre sensors are not reaching
+  `LINE_PRESENT_THRESHOLD`, which is what the exit condition tests through
+  `onLine()`. `JUNCTION_THRESHOLD` governs entering a turn, not leaving one.
 - If the robot spins past the line and keeps going, the timeout is too long
   relative to the spin speed. Reduce the turn speed rather than the timeout.
 
