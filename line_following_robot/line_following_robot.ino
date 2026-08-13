@@ -145,18 +145,18 @@ void turnRight() {
 
   if (farLeftSensorReading >= SENSOR_THRESHOLD) {
 
+    // the line has gone left, not right: hand over without driving
     state = STATE_TURN_LEFT;
-
-  } else {
-
-    motors.spinRight(BiasPWM, 250);
+    return;
 
   }
+
+  motors.spinRight(BiasPWM, 250);
 
   lineFollowingStartTime = millis();
 
   state = STATE_FOLLOW_LINE;
- 
+
 }
 
 void rediscoverLine() {
