@@ -43,6 +43,10 @@
 #define A4 22
 #define A5 23
 
+// On AVR, F() moves a string literal into flash to save the 2.5 KB of RAM.
+// On a host there is no such distinction, so it degrades to the literal.
+#define F(str) (str)
+
 static const int MOCK_MAX_PINS = 32;
 
 // Give up on a discharge loop after this many reads and flag it. Real reads

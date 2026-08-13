@@ -48,6 +48,40 @@ class LineSensor_c {
 
     LineSensor_c() {}
 
+    // Calibration bounds, exposed so the sweep can actually be checked on a
+    // bench. Without these the tuning procedure asks the operator to inspect
+    // numbers that nothing can print. A sensor whose minimum and maximum sit
+    // close together never saw both the line and the surface beside it, which
+    // is the single most common reason a calibrated robot steers badly.
+    uint16_t calibrationMin(uint8_t i) const {
+      return (i < NUM_SENSORS) ? min_raw[i] : 0;
+    }
+
+    uint16_t calibrationMax(uint8_t i) const {
+      return (i < NUM_SENSORS) ? max_raw[i] : 0;
+    }
+
+    // Prints one line per sensor: index, minimum, maximum, span. Intended for
+    // a bench session over the serial monitor, never from the control loop:
+    // it is slow and would blind the robot while it transmits.
+    void reportCalibration() const {
+
+      Serial.println(F("sensor,min_us,max_us,span_us"));
+
+      for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+        Serial.print(i);
+        Serial.print(',');
+        Serial.print(min_raw[i]);
+        Serial.print(',');
+        Serial.print(max_raw[i]);
+        Serial.print(',');
+        Serial.println((uint16_t)(max_raw[i] - min_raw[i]));
+      }
+
+      if (!calibrated) Serial.println(F("WARNING: calibration was rejected"));
+
+    }
+
     void begin() {
 
       pinMode(EMIT_PIN, INPUT);
