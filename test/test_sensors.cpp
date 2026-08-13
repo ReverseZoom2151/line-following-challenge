@@ -87,19 +87,16 @@ int main() {
   }
 
   {
-    // DEFECT: readLineSensor() returns -1 for an out of range index from a
-    // function declared unsigned long (linesensors.h:157). The value wraps to
-    // the type maximum, which is larger than any threshold the caller tests
-    // against, so a rejected read reports a solidly detected line.
-    TEST("DEFECT: an out of range index returns a huge value, not an error");
+    // An out of range index must report as "nothing seen", not as the
+    // unsigned wrap of -1, which exceeded every detection threshold.
+    TEST("an out of range index returns zero, below every threshold");
     mockReset();
     LineSensor_c sensors;
     sensors.setupAllLineSensors();
 
-    unsigned long reading = sensors.readLineSensor(9);
-
-    CHECK(reading >= 1000);
-    CHECK(reading != 0);
+    CHECK_EQ(sensors.readLineSensor(9), 0);
+    CHECK_EQ(sensors.readLineSensor(-1), 0);
+    CHECK(sensors.readLineSensor(5) < 1000);
   }
 
   return testSummary("sensors");

@@ -34,9 +34,10 @@ class LineSensor_c {
       // prevents memory errors 
       if (number < 0 || number > 4) {
 
-        Serial.println("Error: sensor number out of range");
-        return -1; // or some other clear error indication
-     
+        // 0 is the safe error value here: it is an unsigned function, so -1
+        // would wrap to the type maximum and read as a solid line detection
+        return 0;
+
       }
 
       pinMode(EMIT_PIN, OUTPUT);
