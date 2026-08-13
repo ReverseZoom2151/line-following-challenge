@@ -48,38 +48,6 @@ class Motors_c {
 
     }
 
-    void conductMotorValidationTest() {
-
-      // const int PWM_INCREMENT = 1; 
-      const int PWM_INCREMENT = 5; 
-      const int MAX_TEST_PWM = 200;
-      // const int MAX_TEST_PWM = 300;  
-      int testPWM = 0;  
-      bool incrementing = true; 
-
-      while (true) { 
-
-        setMotorPower(testPWM, testPWM);
-
-        if (incrementing) {
-          testPWM += PWM_INCREMENT; 
-          if (testPWM >= MAX_TEST_PWM) incrementing = false; 
-        } else {
-          testPWM -= PWM_INCREMENT;
-          if (testPWM <= -MAX_TEST_PWM) incrementing = true; 
-        } 
-
-        // setMotorPower(testPWM, testPWM);
-
-        Serial.print("testPWM Value: ");
-        Serial.println(testPWM);
-
-        delay(100); 
-
-      }
-
-    }
-
     // stops the robot indefinitely (until hard reset) 
     void stopRobot() {
 
@@ -93,20 +61,6 @@ class Motors_c {
 
     }
 
-    void conductDriveTest(int testPWM, int movementTime) {
-
-      // forward driving
-      digitalWrite(L_DIR_PIN, FWD);  
-      digitalWrite(R_DIR_PIN, FWD);
-      analogWrite(L_PWM_PIN, testPWM);
-      analogWrite(R_PWM_PIN, testPWM); 
-      delay(movementTime); 
-
-      // stops robot
-      stopRobot(); 
-
-    }
-
     void driveStraight(int speed) {
 
       // sets directions for forward movement
@@ -117,20 +71,6 @@ class Motors_c {
       analogWrite(L_PWM_PIN, speed); 
       analogWrite(R_PWM_PIN, speed);
       
-    }
-
-    void driveReverse() {
-
-      int speed = 30;
-
-      // sets directions for backward movement
-      digitalWrite(L_DIR_PIN, REV);  
-      digitalWrite(R_DIR_PIN, REV);
-
-      // drives both motors at the specified speed
-      analogWrite(L_PWM_PIN, speed); 
-      analogWrite(R_PWM_PIN, speed);
-
     }
 
     void spin180(const float speed) {
