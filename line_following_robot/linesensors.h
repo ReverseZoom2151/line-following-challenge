@@ -1,19 +1,13 @@
 #ifndef LINESENSOR_H
 #define LINESENSOR_H
-#define EMIT_PIN    11  
-#define LS_LEFT_PIN 12  
-#define LS_MIDLEFT_PIN A0   
-#define LS_MIDDLE_PIN A2   
-#define LS_MIDRIGHT_PIN A3  
-#define LS_RIGHT_PIN A4   
-#define LINE_SENSOR_UPDATE 100
-#define MOTOR_UPDATE 2000 
+
+#include "config.h"
 
 class LineSensor_c {
 
   private: 
 
-    int ls_pins[5] = { LS_LEFT_PIN, LS_MIDLEFT_PIN, LS_MIDDLE_PIN, LS_MIDRIGHT_PIN, LS_RIGHT_PIN }; // stores pin numbers for convenient access
+    uint8_t ls_pins[NUM_SENSORS] = { LS_LEFT_PIN, LS_MIDLEFT_PIN, LS_MIDDLE_PIN, LS_MIDRIGHT_PIN, LS_RIGHT_PIN }; // stores pin numbers for convenient access
 
   public:
 
@@ -22,7 +16,7 @@ class LineSensor_c {
     void setupAllLineSensors() {
 
       pinMode(EMIT_PIN, INPUT);  
-      for (int i = 0; i < 5; i++) {
+      for (uint8_t i = 0; i < NUM_SENSORS; i++) {
         pinMode(ls_pins[i], INPUT);
       }
 
@@ -32,7 +26,7 @@ class LineSensor_c {
     unsigned long readLineSensor(int number) {
 
       // prevents memory errors 
-      if (number < 0 || number > 4) {
+      if (number < 0 || number >= NUM_SENSORS) {
 
         // 0 is the safe error value here: it is an unsigned function, so -1
         // would wrap to the type maximum and read as a solid line detection
@@ -50,8 +44,6 @@ class LineSensor_c {
 
       // gives up after SENSOR_TIMEOUT_US so a sensor that never discharges
       // (black surface, or a broken connection) cannot stall the robot
-      const unsigned long SENSOR_TIMEOUT_US = 2500;
-
       unsigned long start_time = micros();
 
       while (digitalRead(ls_pins[number]) == HIGH) {

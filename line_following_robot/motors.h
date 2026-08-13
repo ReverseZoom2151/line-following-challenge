@@ -1,11 +1,7 @@
 #ifndef MOTORS_H
 #define MOTORS_H
-#define L_PWM_PIN 10
-#define L_DIR_PIN 16
-#define R_PWM_PIN 9
-#define R_DIR_PIN 15
-#define FWD LOW  
-#define REV HIGH 
+
+#include "config.h"
 
 class Motors_c {
 
@@ -27,10 +23,7 @@ class Motors_c {
 
     void setMotorPower(float left_pwm, float right_pwm) {
 
-      // error handling & range limiting (assume 0-150 is optimal):
-      // const int MAX_PWM = 150;  
-      const int MAX_PWM = 255;  
-      const int MIN_PWM = 0; 
+      // range limiting: demands outside +/-MAX_PWM are clamped, not wrapped
 
       // left motor
       if (left_pwm > MAX_PWM)  left_pwm = MAX_PWM;
