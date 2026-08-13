@@ -28,10 +28,6 @@ class LineSensor_c {
     uint16_t max_raw[NUM_SENSORS];
     bool calibrated = false;
 
-    // A span narrower than this means the sensor never saw both surfaces, so
-    // the calibration is not trustworthy.
-    static const uint16_t MIN_CALIBRATION_SPAN = 20;
-
     // Maps one raw reading onto 0..NORMALISED_MAX, where larger means darker.
     // Falls back to the full timeout range until a calibration exists, so an
     // uncalibrated robot still steers rather than reading all zeroes.

@@ -34,6 +34,11 @@ static const uint16_t NORMALISED_MAX         = 1000;  // calibrated full scale
 static const uint16_t LINE_PRESENT_THRESHOLD = 200;   // normalised units
 static const uint16_t JUNCTION_THRESHOLD     = 600;   // far sensor on line
 
+// Narrowest light-to-dark span, in microseconds, that counts as a usable
+// calibration. Below this the sensor never saw both surfaces, the calibration
+// is rejected outright, and readings fall back to the raw timeout range.
+static const uint16_t MIN_CALIBRATION_SPAN = 20;
+
 // ------------------------------------------------------------- driving
 
 static const float BASE_SPEED_PWM = 30.0f;  // was BiasPWM
@@ -59,5 +64,20 @@ static const uint32_t TURN_SETTLE_MS        = 150;
 static const uint32_t TURN_TIMEOUT_MS       = 1200;
 static const uint32_t REDISCOVER_TIMEOUT_MS = 2000;
 static const uint32_t CALIBRATION_MS        = 3000;
+
+// TURN_SETTLE_MS must stay well below TURN_TIMEOUT_MS, or a turn can only
+// ever end on the timeout and never on reacquiring the line.
+
+// ------------------------------------------------------------- confirmation
+
+// A junction must be seen this many times running before it is acted on, so
+// one noisy frame on a far sensor cannot throw the robot into a turn.
+static const uint8_t JUNCTION_CONFIRM_SAMPLES = 2;
+
+// Joining the line needs this many sightings, each separated by at least the
+// debounce interval: the start box is crossed at an angle and one brush of
+// the line is not enough to commit to following it.
+static const uint8_t  JOIN_HITS_REQUIRED = 2;
+static const uint32_t JOIN_DEBOUNCE_MS   = 200;
 
 #endif

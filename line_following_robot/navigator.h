@@ -44,16 +44,11 @@ class Navigator_c {
     uint32_t state_entered_ms = 0;
     uint32_t now_ms = 0;
 
-    // JoinLine needs to see the line twice, debounced, before it commits:
-    // the start box is crossed at an angle and one brush is not enough.
+    // JoinLine needs to see the line twice, debounced, before it commits.
+    // Both counts live in config.h with every other tunable value.
     uint8_t join_hits = 0;
     uint32_t last_join_hit_ms = 0;
-    static const uint32_t JOIN_DEBOUNCE_MS = 200;
-    static const uint8_t JOIN_HITS_REQUIRED = 2;
 
-    // A junction has to be seen this many times running before it is acted
-    // on, so one noisy reading cannot throw the robot into a turn.
-    static const uint8_t JUNCTION_CONFIRM_SAMPLES = 2;
     Junction pending_junction = Junction::None;
     uint8_t pending_samples = 0;
 
