@@ -44,7 +44,8 @@ control path. The pin map and the mechanical setup are unchanged.
   stub with a virtual clock and virtual pins, plus a watchdog that fails a test
   rather than hanging the suite when a read loop has no timeout.
 - Continuous integration that compiles the sketch for the target board with
-  arduino-cli and runs the host test suite on every push.
+  arduino-cli and runs the host test suite on every push to `main` and on
+  every pull request against it.
 
 ## What still requires validation
 
@@ -192,12 +193,20 @@ line_following_robot/
   linesensors.h              LineSensor_c, SensorSnapshot
   motors.h                   Motors_c
   pid.h                      PID_c
-  navigator.h                Navigator_c, NavState
+  navigator.h                Navigator_c, NavState, Junction
 test/
   arduino_stub.h             virtual clock, virtual pins, read watchdog
   test_harness.h             CHECK, CHECK_EQ, CHECK_NEAR
+  test_motors.cpp            clamping, direction, stop
+  test_sensors.cpp           single-pass read, calibration, line position
+  test_pid.cpp               anti-windup, clamping, derivative behaviour
+  test_navigator.cpp         state transitions and turn exits
   run_tests.sh               compiles and runs every test/test_*.cpp
 .github/workflows/ci.yml     sketch compile and host test suite
+README.md
+TUNING.md                    bench procedure for deriving the constants
+LICENSE                      MIT
+.gitignore
 ```
 
 The firmware classes are header-only, matching the style of the original
@@ -210,7 +219,8 @@ bash test/run_tests.sh
 ```
 
 The runner compiles each `test/test_*.cpp` with
-`g++ -std=c++17 -Wall -Wextra -I test -I line_following_robot`, runs it, and
+`-std=c++17 -Wall -Wextra` and both source directories on the include path,
+using `$CXX` if set and `g++` otherwise, runs each binary, and
 exits non-zero if any binary fails or fails to compile. The Arduino stub
 advances a virtual clock by one microsecond per `digitalRead()` and trips a
 watchdog after a large number of reads, so an unbounded firmware read loop
