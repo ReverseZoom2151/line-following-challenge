@@ -76,8 +76,9 @@ static const uint16_t BATTERY_MIN_VALID_MV = 1000;
 // the robot in someone's hand is how fingers get hurt. The clamp means the
 // worst a bad reading can do is double the demand, which the PWM clamp in
 // motors.h then limits again.
-static const float BATTERY_COMP_MIN = 0.5f;
-static const float BATTERY_COMP_MAX = 2.0f;
+// BATTERY_COMP_MIN and BATTERY_COMP_MAX live in config.h, because motors.h
+// enforces the same bounds when a factor is handed to it and the two must not
+// be able to drift apart.
 
 // ------------------------------------------------------------- smoothing
 

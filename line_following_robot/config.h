@@ -56,6 +56,20 @@ static const float PID_INTEGRAL_LIMIT = 50.0f;
 // Ki and Kd default to zero deliberately, so the controller degrades exactly
 // to the proportional behaviour that is known to work on the course.
 
+// ------------------------------------------------------- battery clamping
+
+// Bounds on the battery compensation factor. Both battery.h (which produces
+// the factor) and motors.h (which accepts it) enforce these, so a factor can
+// never arrive at the motors outside the range the sensing side promised.
+//
+// The clamp is a safety property, not a tuning preference. An unclamped
+// factor from a disconnected or misread ADC would command full power to both
+// motors, which on a bench with the robot in someone's hand is how fingers
+// get hurt. The worst a bad reading can now do is double the demand, which
+// the PWM clamp then limits again.
+static const float BATTERY_COMP_MIN = 0.5f;
+static const float BATTERY_COMP_MAX = 2.0f;
+
 // ------------------------------------------------------------- timings
 
 // A turn ignores the line it started on for this long, so it cannot exit
@@ -85,6 +99,22 @@ static const uint32_t JOIN_DEBOUNCE_MS   = 200;
 // was rejected and every reading looks the same. Every other moving state is
 // already bounded; this one was not.
 static const uint32_t JOIN_TIMEOUT_MS = 5000;
+
+// ------------------------------------------------------------- boot
+
+// How long the robot offers the mode choice on power-up before starting the
+// course on its own. Long enough to reach for a button, short enough that a
+// robot placed on a course and switched on does not sit there.
+static const uint32_t BOOT_SELECT_MS = 2000;
+
+// How long to wait for a USB host to open the serial port. The 32U4
+// enumerates after boot, so an immediate print is lost, but a robot running
+// from a battery has no host and must not wait forever.
+static const uint32_t SERIAL_WAIT_MS = 1500;
+
+// How often the battery is sampled in the control loop. A pack does not drain
+// measurably between two passes running at sensor speed.
+static const uint32_t BATTERY_SAMPLE_MS = 500;
 
 // ------------------------------------------------------------- bench mode
 

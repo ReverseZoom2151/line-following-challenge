@@ -195,6 +195,28 @@ class LineSensor_c {
 
     }
 
+    // Restores bounds recorded on a previous run, so a good sweep survives a
+    // power cycle. The bounds are put through exactly the same span check a
+    // fresh sweep faces: a stored record is not more trustworthy than a live
+    // one just because it came out of EEPROM, and a narrow span produces a
+    // robot that cannot tell floor from line whatever its origin.
+    //
+    // Returns false and leaves the sensor uncalibrated if the bounds are not
+    // usable, so a caller can fall back to sweeping again.
+    bool applyCalibration(const uint16_t *min_in, const uint16_t *max_in, uint8_t count) {
+
+      if (min_in == 0 || max_in == 0 || count != NUM_SENSORS) return false;
+
+      for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+        min_raw[i] = min_in[i];
+        max_raw[i] = max_in[i];
+      }
+
+      endCalibration();
+      return calibrated;
+
+    }
+
     void endCalibration() {
 
       // only accepts the calibration if every sensor saw a usable spread,

@@ -11,6 +11,12 @@ class Motors_c {
 
     }
 
+  private:
+
+    float compensation = 1.0f;
+
+  public:
+
     void begin() {
 
       // sets all the motor pins as outputs
@@ -21,7 +27,33 @@ class Motors_c {
 
     }
 
+    // Battery compensation. As the pack drains, the same PWM produces less
+    // torque, so gains tuned on a fresh pack are wrong on a flat one. Scaling
+    // the demand by nominal/measured keeps behaviour constant. Defaults to
+    // 1.0, which is exactly no compensation, so a robot that never calls this
+    // behaves as it always did.
+    //
+    // The factor is applied before clamping, so compensation can never push
+    // the output past MAX_PWM.
+    void setCompensation(float factor) {
+
+      // A caller passing something absurd must not command full power. The
+      // safe direction on a bad reading is no compensation at all.
+      if (!(factor > 0.0f) || factor < BATTERY_COMP_MIN || factor > BATTERY_COMP_MAX) {
+        compensation = 1.0f;
+        return;
+      }
+
+      compensation = factor;
+
+    }
+
+    float compensationFactor() const { return compensation; }
+
     void setMotorPower(float left_pwm, float right_pwm) {
+
+      left_pwm *= compensation;
+      right_pwm *= compensation;
 
       // range limiting: demands outside +/-MAX_PWM are clamped, not wrapped
 

@@ -430,5 +430,52 @@ int main() {
     CHECK_EQ(tl, tr);
   }
 
+  {
+    TEST("beginCalibrated skips the sweep and keeps the restored bounds");
+    mockReset();
+    LineSensor_c sensors;
+    Motors_c motors;
+    Navigator_c nav;
+    motors.begin();
+    sensors.begin();
+
+    uint16_t lo[NUM_SENSORS];
+    uint16_t hi[NUM_SENSORS];
+    for (uint8_t i = 0; i < NUM_SENSORS; i++) { lo[i] = 150; hi[i] = 2000; }
+    CHECK(sensors.applyCalibration(lo, hi, NUM_SENSORS));
+
+    nav.beginCalibrated(&sensors, &motors);
+
+    // straight to looking for the line, no sweep
+    CHECK(nav.state() == NavState::JoinLine);
+
+    // and the restored bounds survived. begin() would have reopened a sweep
+    // and thrown them away on the first snapshot, which is the whole reason
+    // this does not route through it.
+    CHECK(sensors.isCalibrated());
+    CHECK_EQ(sensors.calibrationMin(0), 150);
+    CHECK_EQ(sensors.calibrationMax(0), 2000);
+  }
+
+  {
+    TEST("begin still opens a sweep and starts in Calibrate");
+    mockReset();
+    LineSensor_c sensors;
+    Motors_c motors;
+    Navigator_c nav;
+    motors.begin();
+    sensors.begin();
+
+    uint16_t lo[NUM_SENSORS];
+    uint16_t hi[NUM_SENSORS];
+    for (uint8_t i = 0; i < NUM_SENSORS; i++) { lo[i] = 150; hi[i] = 2000; }
+    CHECK(sensors.applyCalibration(lo, hi, NUM_SENSORS));
+
+    nav.begin(&sensors, &motors);
+
+    CHECK(nav.state() == NavState::Calibrate);
+    CHECK(!sensors.isCalibrated());  // the sweep discarded the old bounds
+  }
+
   return testSummary("navigator");
 }

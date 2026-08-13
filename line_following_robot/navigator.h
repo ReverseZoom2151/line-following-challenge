@@ -35,6 +35,24 @@ class Navigator_c {
 
   private:
 
+    // Shared by begin() and beginCalibrated(): everything except which state
+    // the machine opens in, and whether a calibration sweep is started.
+    void reset(LineSensor_c *line_sensors, Motors_c *drive) {
+
+      sensors = line_sensors;
+      motors = drive;
+
+      state_entered_ms = 0;
+      now_ms = 0;
+      join_hits = 0;
+      last_join_hit_ms = 0;
+      pending_junction = Junction::None;
+      pending_samples = 0;
+
+      pid.reset();
+
+    }
+
     LineSensor_c *sensors = 0;
     Motors_c *motors = 0;
 
@@ -275,19 +293,26 @@ class Navigator_c {
 
     void begin(LineSensor_c *line_sensors, Motors_c *drive) {
 
-      sensors = line_sensors;
-      motors = drive;
+      reset(line_sensors, drive);
 
       nav_state = NavState::Calibrate;
-      state_entered_ms = 0;
-      now_ms = 0;
-      join_hits = 0;
-      last_join_hit_ms = 0;
-      pending_junction = Junction::None;
-      pending_samples = 0;
-
-      pid.reset();
       sensors->beginCalibration();
+
+    }
+
+    // Starts without sweeping, for a robot whose calibration was restored
+    // from storage. The caller must have applied bounds the sensor accepted:
+    // this skips the sweep, not the need to be calibrated, and starting here
+    // uncalibrated would leave the fallback range in use and a robot that
+    // reads floor and line much alike.
+    //
+    // Deliberately does not go through begin(), which opens a fresh sweep and
+    // would discard the restored bounds on the first snapshot.
+    void beginCalibrated(LineSensor_c *line_sensors, Motors_c *drive) {
+
+      reset(line_sensors, drive);
+
+      nav_state = NavState::JoinLine;
 
     }
 

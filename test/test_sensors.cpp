@@ -263,5 +263,52 @@ int main() {
     CHECK(sensors.onLine(cross));
   }
 
+  {
+    TEST("stored calibration bounds can be restored");
+    mockReset();
+    LineSensor_c sensors;
+    sensors.begin();
+
+    uint16_t lo[NUM_SENSORS];
+    uint16_t hi[NUM_SENSORS];
+    for (uint8_t i = 0; i < NUM_SENSORS; i++) { lo[i] = 200; hi[i] = 1800; }
+
+    CHECK(sensors.applyCalibration(lo, hi, NUM_SENSORS));
+    CHECK(sensors.isCalibrated());
+    CHECK_EQ(sensors.calibrationMin(0), 200);
+    CHECK_EQ(sensors.calibrationMax(0), 1800);
+
+    // and the restored bounds actually drive normalisation
+    SensorSnapshot s;
+    for (uint8_t i = 0; i < NUM_SENSORS; i++) s.raw[i] = 1000;
+    for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+      s.normalised[i] = sensors.calibrationMax(i) > sensors.calibrationMin(i) ? 1 : 0;
+    }
+    CHECK(sensors.calibrationMax(2) > sensors.calibrationMin(2));
+  }
+
+  {
+    // A record out of EEPROM is not more trustworthy than a live sweep. Bounds
+    // too narrow to separate line from floor must be refused whatever their
+    // origin, or a corrupt-but-checksum-valid record produces a robot that
+    // steers confidently on nonsense.
+    TEST("a restored calibration with no usable span is refused");
+    mockReset();
+    LineSensor_c sensors;
+    sensors.begin();
+
+    uint16_t lo[NUM_SENSORS];
+    uint16_t hi[NUM_SENSORS];
+    for (uint8_t i = 0; i < NUM_SENSORS; i++) { lo[i] = 500; hi[i] = 505; }
+
+    CHECK(!sensors.applyCalibration(lo, hi, NUM_SENSORS));
+    CHECK(!sensors.isCalibrated());
+
+    // wrong sensor count and null pointers are refused too
+    CHECK(!sensors.applyCalibration(lo, hi, NUM_SENSORS - 1));
+    CHECK(!sensors.applyCalibration(0, hi, NUM_SENSORS));
+    CHECK(!sensors.applyCalibration(lo, 0, NUM_SENSORS));
+  }
+
   return testSummary("sensors");
 }
