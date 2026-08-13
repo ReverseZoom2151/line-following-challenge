@@ -9,27 +9,50 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Nothing here writes to the repository, so drop the token to read-only.
+permissions:
+  contents: read
+
+# A newer push to the same branch makes an in-flight run obsolete.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Compile the firmware sketch against the Pololu A-Star board core.
   # This does not flash or run anything, it only checks the sketch builds.
   compile:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Pinned so a new upstream release cannot change what CI builds with,
+      # and so the cache key below refers to something real.
+      ARDUINO_CLI_VERSION: 1.5.1
     steps:
       - uses: actions/checkout@v4
 
       # arduino-cli downloads and caches board packages under ~/.arduino15.
-      # Cache that directory so repeat runs do not re-download the cores
-      # and board indexes every time.
+      # Cache that directory so repeat runs do not re-download the cores and
+      # board indexes every time. The key includes the pinned tool version so
+      # that bumping it fetches a fresh set rather than reusing stale cores:
+      # keying on this file alone would mean a cache poisoned on its first run
+      # could never be evicted.
       - name: Cache arduino-cli data
         uses: actions/cache@v4
         with:
           path: ~/.arduino15
-          key: ${{ runner.os }}-arduino15-${{ hashFiles('.github/workflows/ci.yml') }}
+          key: ${{ runner.os }}-arduino15-${{ env.ARDUINO_CLI_VERSION }}-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-arduino15-${{ env.ARDUINO_CLI_VERSION }}-
 
+      # Installed into a directory outside the checkout so the tool does not
+      # appear as an untracked bin/ in the working tree.
       - name: Install arduino-cli
         run: |
-          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
-          echo "$PWD/bin" >> "$GITHUB_PATH"
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/v${ARDUINO_CLI_VERSION}/install.sh \
+            | BINDIR="$HOME/.local/bin" sh -s ${ARDUINO_CLI_VERSION}
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Configure Pololu board index
         run: |
@@ -37,10 +60,11 @@ jobs:
           arduino-cli config add board_manager.additional_urls https://files.pololu.com/arduino/package_pololu_index.json
           arduino-cli core update-index
 
-      # The Pololu A-Star core depends on arduino:avr for shared toolchain
-      # and core files. Installing pololu-a-star:avr on its own fails with
-      # "missing platform release arduino:avr", so both cores must be
-      # installed explicitly and in this order.
+      # The Pololu A-Star board definitions reference the arduino:avr platform
+      # rather than bundling their own, so arduino:avr must be present or the
+      # build fails with "missing platform release arduino:avr" at compile
+      # time. arduino-cli does not resolve that dependency on its own, so both
+      # cores are installed explicitly.
       - name: Install board cores
         run: |
           arduino-cli core install arduino:avr
@@ -55,6 +79,7 @@ jobs:
   # target hardware, so they run on every push without needing a robot.
   host-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
