@@ -1,0 +1,62 @@
+name: CI
+
+# Run on pushes and pull requests targeting main, and allow manual runs
+# from the Actions tab.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # Compile the firmware sketch against the Pololu A-Star board core.
+  # This does not flash or run anything, it only checks the sketch builds.
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # arduino-cli downloads and caches board packages under ~/.arduino15.
+      # Cache that directory so repeat runs do not re-download the cores
+      # and board indexes every time.
+      - name: Cache arduino-cli data
+        uses: actions/cache@v4
+        with:
+          path: ~/.arduino15
+          key: ${{ runner.os }}-arduino15-${{ hashFiles('.github/workflows/ci.yml') }}
+
+      - name: Install arduino-cli
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh | sh
+          echo "$PWD/bin" >> "$GITHUB_PATH"
+
+      - name: Configure Pololu board index
+        run: |
+          arduino-cli config init --overwrite
+          arduino-cli config add board_manager.additional_urls https://files.pololu.com/arduino/package_pololu_index.json
+          arduino-cli core update-index
+
+      # The Pololu A-Star core depends on arduino:avr for shared toolchain
+      # and core files. Installing pololu-a-star:avr on its own fails with
+      # "missing platform release arduino:avr", so both cores must be
+      # installed explicitly and in this order.
+      - name: Install board cores
+        run: |
+          arduino-cli core install arduino:avr
+          arduino-cli core install pololu-a-star:avr
+
+      - name: Compile sketch
+        run: |
+          arduino-cli compile --fqbn pololu-a-star:avr:a-star32U4 line_following_robot
+
+  # Build and run the C++ host tests. These exercise the sensor, motor, PID
+  # and navigator logic on the runner's own g++ toolchain rather than on
+  # target hardware, so they run on every push without needing a robot.
+  host-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run host test suite
+        run: bash test/run_tests.sh
