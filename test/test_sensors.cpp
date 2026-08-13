@@ -70,19 +70,20 @@ int main() {
   }
 
   {
-    // DEFECT: readLineSensor() busy-waits on the sensor pin with no timeout
-    // (linesensors.h:171). A sensor over a black surface, or a broken
-    // connection, never pulls the pin low, so the robot hangs until it is
-    // reset. Every other read routine in this file has a timeout.
-    TEST("DEFECT: a sensor that never discharges hangs the read loop");
+    // A sensor over a black surface, or a broken connection, never pulls the
+    // pin low. The read must give up rather than spin until the robot is
+    // reset. The stub's watchdog standing untripped is the proof.
+    TEST("a sensor that never discharges times out instead of hanging");
     mockReset();
     LineSensor_c sensors;
     sensors.setupAllLineSensors();
     mockSetNeverDischarges(LS_MIDDLE_PIN);
 
-    sensors.readLineSensor(2);
+    unsigned long reading = sensors.readLineSensor(2);
 
-    CHECK(mockWatchdogTripped);
+    CHECK(!mockWatchdogTripped);
+    CHECK(reading >= 2500);
+    CHECK(reading <= 2600);
   }
 
   {

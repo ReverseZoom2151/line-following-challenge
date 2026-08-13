@@ -47,9 +47,17 @@ class LineSensor_c {
 
       pinMode(ls_pins[number], INPUT); // only switches to input for measurement
 
+      // gives up after SENSOR_TIMEOUT_US so a sensor that never discharges
+      // (black surface, or a broken connection) cannot stall the robot
+      const unsigned long SENSOR_TIMEOUT_US = 2500;
+
       unsigned long start_time = micros();
 
-      while (digitalRead(ls_pins[number]) == HIGH) {}
+      while (digitalRead(ls_pins[number]) == HIGH) {
+
+        if ((micros() - start_time) > SENSOR_TIMEOUT_US) break;
+
+      }
 
       unsigned long end_time = micros();
 
