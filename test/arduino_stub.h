@@ -145,6 +145,46 @@ inline int digitalRead(int pin) {
 inline unsigned long micros() { return mockNowMicros; }
 inline unsigned long millis() { return mockNowMicros / 1000UL; }
 
+// ------------------------------------------------------- analog and buttons
+
+// Analog input, used for battery voltage sensing. Tests set the value a pin
+// will report; nothing here models the ADC's timing.
+inline int mockAnalogValues[MOCK_MAX_PINS] = {};
+
+inline void mockSetAnalogRead(int pin, int value) {
+  if (pin >= 0 && pin < MOCK_MAX_PINS) mockAnalogValues[pin] = value;
+}
+
+inline int analogRead(int pin) {
+  return (pin >= 0 && pin < MOCK_MAX_PINS) ? mockAnalogValues[pin] : 0;
+}
+
+// Buttons on the 3Pi+ read LOW when pressed, so a test presses a button by
+// forcing the pin low rather than high.
+inline void mockPressButton(int pin) {
+  mockPins[pin].mode = INPUT_PULLUP;
+  mockPins[pin].digitalValue = LOW;
+}
+
+inline void mockReleaseButton(int pin) {
+  mockPins[pin].mode = INPUT_PULLUP;
+  mockPins[pin].digitalValue = HIGH;
+}
+
+// ------------------------------------------------------------- interrupts
+
+// Encoder code attaches interrupts. On a host nothing fires them, so tests
+// drive the handler directly; these exist so the firmware compiles.
+inline int mockAttachedInterrupts = 0;
+
+inline int digitalPinToInterrupt(int pin) { return pin; }
+inline void attachInterrupt(int, void (*)(), int) { mockAttachedInterrupts++; }
+inline void detachInterrupt(int) { mockAttachedInterrupts--; }
+
+#define CHANGE 1
+#define RISING 2
+#define FALLING 3
+
 inline void delay(unsigned long ms) { mockNowMicros += ms * 1000UL; }
 inline void delayMicroseconds(unsigned int us) { mockNowMicros += us; }
 
