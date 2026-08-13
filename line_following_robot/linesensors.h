@@ -223,9 +223,18 @@ class LineSensor_c {
         weighted += (int32_t)weights[i] * (int32_t)s.normalised[i];
       }
 
-      // this is also the divide-by-zero guard: with no line under any sensor
-      // there is no position to report, so no steering demand is invented
-      if (total < (int32_t)LINE_PRESENT_THRESHOLD) {
+      // The presence test is on the STRONGEST sensor, not on the sum. Testing
+      // the sum meant five sensors reading a little each could add up to a
+      // line that was not there: on an uncalibrated robot, bare floor
+      // normalises to roughly 72 per sensor, and 5 x 72 = 360 cleared a
+      // threshold of 200. The robot then believed it was centred on a line
+      // while looking at an empty floor. Using the maximum also makes this
+      // agree with onLine(), which tests sensors individually and was never
+      // fooled; the two disagreeing is what made the failure silent.
+      //
+      // This is still the divide-by-zero guard: total cannot be below the
+      // maximum, so a passing maximum guarantees a non-zero total.
+      if (activation(s) < LINE_PRESENT_THRESHOLD) {
         lineFound = false;
         return 0.0f;
       }

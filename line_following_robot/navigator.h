@@ -133,7 +133,15 @@ class Navigator_c {
         last_join_hit_ms = now_ms;
       }
 
-      if (join_hits >= JOIN_HITS_REQUIRED) enter(NavState::FollowLine);
+      if (join_hits >= JOIN_HITS_REQUIRED) {
+        enter(NavState::FollowLine);
+        return;
+      }
+
+      // Give up rather than drive away. A robot that has looked this long
+      // without finding a line is not going to find one by continuing, and
+      // the alternative is driving off the end of the table.
+      if (elapsedInState() >= JOIN_TIMEOUT_MS) enter(NavState::Halted);
 
     }
 

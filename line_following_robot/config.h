@@ -80,6 +80,12 @@ static const uint8_t JUNCTION_CONFIRM_SAMPLES = 2;
 static const uint8_t  JOIN_HITS_REQUIRED = 2;
 static const uint32_t JOIN_DEBOUNCE_MS   = 200;
 
+// Joining must give up eventually. Without this the robot drives straight
+// forever when it never finds the line, which is what happens if calibration
+// was rejected and every reading looks the same. Every other moving state is
+// already bounded; this one was not.
+static const uint32_t JOIN_TIMEOUT_MS = 5000;
+
 // ------------------------------------------------------------- bench mode
 
 // Set to 1 to build the diagnostic firmware that the procedure in TUNING.md
