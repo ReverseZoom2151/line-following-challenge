@@ -1,0 +1,28 @@
+# Arduino build output
+build/
+*.hex
+*.elf
+*.eep
+*.lss
+*.map
+*.o
+*.a
+*.d
+
+# arduino-cli
+.arduino15/
+*.internal.cache
+
+# Host test binaries
+test/build/
+test/*.exe
+test/*.out
+
+# Editor and OS
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
