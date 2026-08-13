@@ -112,5 +112,44 @@ int main() {
     CHECK_EQ(mockPins[R_PWM_PIN].analogValue, 30);
   }
 
+  {
+    TEST("spinLeft and spinRight oppose the two channels");
+    mockReset();
+    Motors_c motors;
+    motors.begin();
+
+    motors.spinLeft(30);
+    CHECK_EQ(mockPins[L_DIR_PIN].digitalValue, REV);
+    CHECK_EQ(mockPins[R_DIR_PIN].digitalValue, FWD);
+    CHECK_EQ(mockPins[L_PWM_PIN].analogValue, 30);
+    CHECK_EQ(mockPins[R_PWM_PIN].analogValue, 30);
+
+    motors.spinRight(30);
+    CHECK_EQ(mockPins[L_DIR_PIN].digitalValue, FWD);
+    CHECK_EQ(mockPins[R_DIR_PIN].digitalValue, REV);
+  }
+
+  {
+    // Regression: these three used to write analogWrite directly, so an
+    // out-of-range demand truncated into an 8-bit register instead of being
+    // clamped. A demand of 300 became 44, a slow crawl rather than full speed.
+    TEST("the movement primitives clamp rather than wrap");
+    mockReset();
+    Motors_c motors;
+    motors.begin();
+
+    motors.driveStraight(300);
+    CHECK_EQ(mockPins[L_PWM_PIN].analogValue, 255);
+    CHECK_EQ(mockPins[R_PWM_PIN].analogValue, 255);
+
+    motors.spinLeft(300);
+    CHECK_EQ(mockPins[L_PWM_PIN].analogValue, 255);
+    CHECK_EQ(mockPins[L_DIR_PIN].digitalValue, REV);
+
+    motors.spinRight(300);
+    CHECK_EQ(mockPins[R_PWM_PIN].analogValue, 255);
+    CHECK_EQ(mockPins[R_DIR_PIN].digitalValue, REV);
+  }
+
   return testSummary("motors");
 }

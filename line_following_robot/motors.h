@@ -50,16 +50,15 @@ class Motors_c {
 
     }
 
+    // The movement primitives below all route through setMotorPower rather
+    // than writing the PWM pins themselves, so that a demand outside
+    // +/-MAX_PWM is clamped in exactly one place. Writing analogWrite
+    // directly would truncate into an 8-bit register instead: a demand of
+    // 300 would wrap to 44 and the robot would quietly crawl.
     void driveStraight(const float speed) {
 
-      // sets directions for forward movement
-      digitalWrite(L_DIR_PIN, FWD);
-      digitalWrite(R_DIR_PIN, FWD);
+      setMotorPower(speed, speed);
 
-      // drives both motors at the specified speed
-      analogWrite(L_PWM_PIN, speed); 
-      analogWrite(R_PWM_PIN, speed);
-      
     }
 
     // Spins on the spot. Like every other method here it commands the
@@ -67,21 +66,13 @@ class Motors_c {
     // decision, taken between sensor readings rather than inside a delay.
     void spinLeft(const float speed) {
 
-      digitalWrite(L_DIR_PIN, REV);
-      digitalWrite(R_DIR_PIN, FWD);
-
-      analogWrite(L_PWM_PIN, speed);
-      analogWrite(R_PWM_PIN, speed);
+      setMotorPower(-speed, speed);
 
     }
 
     void spinRight(const float speed) {
 
-      digitalWrite(L_DIR_PIN, FWD);
-      digitalWrite(R_DIR_PIN, REV);
-
-      analogWrite(L_PWM_PIN, speed);
-      analogWrite(R_PWM_PIN, speed);
+      setMotorPower(speed, -speed);
 
     }
 
