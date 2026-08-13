@@ -25,8 +25,12 @@ static SensorSnapshot snap(uint16_t a, uint16_t b, uint16_t c, uint16_t d,
 
 static const SensorSnapshot BLANK = snap(0, 0, 0, 0, 0);
 static const SensorSnapshot CENTRED = snap(0, 100, 900, 100, 0);
-static const SensorSnapshot LEFT_BRANCH = snap(900, 300, 700, 0, 0);
-static const SensorSnapshot RIGHT_BRANCH = snap(0, 0, 700, 300, 900);
+// A corner: the far sensor is on the line and the way ahead is not.
+static const SensorSnapshot LEFT_BRANCH = snap(900, 400, 300, 0, 0);
+static const SensorSnapshot RIGHT_BRANCH = snap(0, 0, 300, 400, 900);
+// A side mark passed at speed: the far sensor fires but the line runs on.
+static const SensorSnapshot LEFT_SIDE_MARK = snap(900, 300, 900, 300, 0);
+static const SensorSnapshot RIGHT_SIDE_MARK = snap(0, 300, 900, 300, 900);
 static const SensorSnapshot CROSS = snap(900, 800, 900, 800, 900);
 
 // Calibration needs every sensor to see both surfaces, so these sweep all
@@ -40,6 +44,16 @@ static uint32_t runCalibration(Navigator_c &nav, uint32_t t) {
     t += 100;
     nav.update(t, (i % 2) ? CAL_DARK : CAL_LIGHT);
   }
+  return t;
+}
+
+// Presents the same view twice, which is what the navigator requires before
+// it acts on a junction.
+static uint32_t confirm(Navigator_c &nav, uint32_t t, const SensorSnapshot &s) {
+  t += 10;
+  nav.update(t, s);
+  t += 10;
+  nav.update(t, s);
   return t;
 }
 
@@ -178,8 +192,7 @@ int main() {
 
     uint32_t t = driveToFollowLine(nav, 0);
 
-    t += 10;
-    nav.update(t, LEFT_BRANCH);
+    t = confirm(nav, t, LEFT_BRANCH);
     CHECK(nav.state() == NavState::TurnLeft);
     uint32_t turn_started = t;
 
@@ -205,8 +218,7 @@ int main() {
     CHECK((t - turn_started) < TURN_TIMEOUT_MS);
 
     // and the same on the other side
-    t += 10;
-    nav.update(t, RIGHT_BRANCH);
+    t = confirm(nav, t, RIGHT_BRANCH);
     CHECK(nav.state() == NavState::TurnRight);
     t += 10;
     nav.update(t, BLANK);
@@ -229,8 +241,7 @@ int main() {
 
     uint32_t t = driveToFollowLine(nav, 0);
 
-    t += 10;
-    nav.update(t, LEFT_BRANCH);
+    t = confirm(nav, t, LEFT_BRANCH);
     CHECK(nav.state() == NavState::TurnLeft);
 
     uint32_t turn_started = t;
@@ -259,8 +270,7 @@ int main() {
     nav.begin(&sensors, &motors);
 
     uint32_t t = driveToFollowLine(nav, 0);
-    t += 10;
-    nav.update(t, CROSS);
+    t = confirm(nav, t, CROSS);
     CHECK(nav.state() == NavState::Crossroads);
 
     // still over the junction: keeps going straight
@@ -326,6 +336,98 @@ int main() {
       CHECK_EQ(mockPins[R_PWM_PIN].analogValue, 0);
     }
     CHECK(nav.state() == NavState::Halted);
+  }
+
+  {
+    TEST("a single noisy frame on a far sensor is not a junction");
+    mockReset();
+    LineSensor_c sensors;
+    Motors_c motors;
+    Navigator_c nav;
+    sensors.begin();
+    motors.initialise();
+    nav.begin(&sensors, &motors);
+
+    uint32_t t = driveToFollowLine(nav, 0);
+
+    // one frame of far-left, then the line again
+    t += 10;
+    nav.update(t, LEFT_BRANCH);
+    CHECK(nav.state() == NavState::FollowLine);
+    t += 10;
+    nav.update(t, CENTRED);
+    CHECK(nav.state() == NavState::FollowLine);
+
+    // the same on the right, and at a crossroads
+    t += 10;
+    nav.update(t, RIGHT_BRANCH);
+    CHECK(nav.state() == NavState::FollowLine);
+    t += 10;
+    nav.update(t, CENTRED);
+    t += 10;
+    nav.update(t, CROSS);
+    CHECK(nav.state() == NavState::FollowLine);
+  }
+
+  {
+    TEST("a side mark with the line running on is not a corner");
+    mockReset();
+    LineSensor_c sensors;
+    Motors_c motors;
+    Navigator_c nav;
+    sensors.begin();
+    motors.initialise();
+    nav.begin(&sensors, &motors);
+
+    uint32_t t = driveToFollowLine(nav, 0);
+
+    // held for several frames: still not a turn, because the way ahead is
+    // clearly the line the robot is already following
+    for (int i = 0; i < 5; i++) {
+      t += 10;
+      nav.update(t, LEFT_SIDE_MARK);
+    }
+    CHECK(nav.state() == NavState::FollowLine);
+
+    for (int i = 0; i < 5; i++) {
+      t += 10;
+      nav.update(t, RIGHT_SIDE_MARK);
+    }
+    CHECK(nav.state() == NavState::FollowLine);
+
+    // whereas the same far sensor with nothing ahead is a corner
+    t = confirm(nav, t, LEFT_BRANCH);
+    CHECK(nav.state() == NavState::TurnLeft);
+  }
+
+  {
+    TEST("classification is symmetric between left and right");
+    mockReset();
+    LineSensor_c sensorsL;
+    Motors_c motorsL;
+    Navigator_c navL;
+    sensorsL.begin();
+    motorsL.initialise();
+    navL.begin(&sensorsL, &motorsL);
+    uint32_t tl = driveToFollowLine(navL, 0);
+    tl = confirm(navL, tl, LEFT_BRANCH);
+
+    mockReset();
+    LineSensor_c sensorsR;
+    Motors_c motorsR;
+    Navigator_c navR;
+    sensorsR.begin();
+    motorsR.initialise();
+    navR.begin(&sensorsR, &motorsR);
+    uint32_t tr = driveToFollowLine(navR, 0);
+    tr = confirm(navR, tr, RIGHT_BRANCH);
+
+    // mirrored evidence, mirrored decision, taken at the same moment: the
+    // old rules required the line present to turn left and absent to turn
+    // right, so the two sides could never agree
+    CHECK(navL.state() == NavState::TurnLeft);
+    CHECK(navR.state() == NavState::TurnRight);
+    CHECK_EQ(tl, tr);
   }
 
   return testSummary("navigator");

@@ -22,6 +22,10 @@ enum class NavState : uint8_t {
 
 };
 
+// What the sensor bar is currently looking at, as distinct from what the
+// robot is doing about it.
+enum class Junction : uint8_t { None, Left, Right, Cross };
+
 // Event-driven state machine. Every transition goes through enter(), which
 // runs the exit action of the state being left and the entry action of the
 // state being joined. Timers and the controller are therefore reset in
@@ -46,6 +50,12 @@ class Navigator_c {
     uint32_t last_join_hit_ms = 0;
     static const uint32_t JOIN_DEBOUNCE_MS = 200;
     static const uint8_t JOIN_HITS_REQUIRED = 2;
+
+    // A junction has to be seen this many times running before it is acted
+    // on, so one noisy reading cannot throw the robot into a turn.
+    static const uint8_t JUNCTION_CONFIRM_SAMPLES = 2;
+    Junction pending_junction = Junction::None;
+    uint8_t pending_samples = 0;
 
     uint32_t elapsedInState() const { return now_ms - state_entered_ms; }
 
@@ -87,6 +97,8 @@ class Navigator_c {
           // the error history from before a turn describes a line the robot
           // is no longer on, so it is dropped rather than carried across
           pid.reset();
+          pending_junction = Junction::None;
+          pending_samples = 0;
           break;
 
         case NavState::Halted:
@@ -130,29 +142,54 @@ class Navigator_c {
 
     }
 
+    // Classifies what the sensor bar is looking at. The rule is symmetric:
+    // the same evidence on the left and on the right gives mirrored answers.
+    // The previous sketch required the line to be present to turn left and
+    // absent to turn right, which cannot both describe the same junction.
+    Junction classify(const SensorSnapshot &s) const {
+
+      bool left = sensors->farLeftActive(s);
+      bool right = sensors->farRightActive(s);
+
+      if (!left && !right) return Junction::None;
+
+      if (left && right) return Junction::Cross;
+
+      // A far sensor firing while the line still runs straight ahead is a
+      // side mark or a branch being passed, not a corner. Turning there is
+      // what took the robot off the course; it now keeps following.
+      if (s.normalised[NUM_SENSORS / 2] >= JUNCTION_THRESHOLD) return Junction::None;
+
+      return left ? Junction::Left : Junction::Right;
+
+    }
+
     void runFollowLine(const SensorSnapshot &s) {
 
       bool line_found = false;
       float position = sensors->linePosition(s, line_found);
 
-      // junctions are decided before steering, so a branch is not steered
-      // into as though it were the line drifting
-      bool left = sensors->farLeftActive(s);
-      bool right = sensors->farRightActive(s);
+      // Junctions are decided before steering, so a branch is not steered
+      // into as though it were the line drifting. A classification has to
+      // hold for two consecutive readings before it is acted on: a single
+      // frame of noise on a far sensor is not a corner.
+      Junction junction = classify(s);
 
-      if (left && right) {
-        enter(NavState::Crossroads);
-        return;
+      if (junction != pending_junction) {
+        pending_junction = junction;
+        pending_samples = 1;
+      } else if (pending_samples < 255) {
+        pending_samples++;
       }
 
-      if (left) {
-        enter(NavState::TurnLeft);
-        return;
-      }
+      if (junction != Junction::None && pending_samples >= JUNCTION_CONFIRM_SAMPLES) {
 
-      if (right) {
-        enter(NavState::TurnRight);
+        if (junction == Junction::Cross) enter(NavState::Crossroads);
+        else if (junction == Junction::Left) enter(NavState::TurnLeft);
+        else enter(NavState::TurnRight);
+
         return;
+
       }
 
       if (!line_found) {
@@ -243,6 +280,8 @@ class Navigator_c {
       now_ms = 0;
       join_hits = 0;
       last_join_hit_ms = 0;
+      pending_junction = Junction::None;
+      pending_samples = 0;
 
       pid.reset();
       sensors->beginCalibration();
