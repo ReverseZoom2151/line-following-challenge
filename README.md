@@ -201,13 +201,25 @@ line_following_robot/
   motors.h                   Motors_c
   pid.h                      PID_c
   navigator.h                Navigator_c, NavState, Junction
+  battery.h                  Battery_c, not yet wired in
+  encoders.h                 Encoders_c, not yet wired in, see the pin note
+  buttons.h                  Buttons_c, not yet wired in
+  calibration_store.h        CalibrationStore_c, not yet wired in
 test/
   arduino_stub.h             virtual clock, virtual pins, read watchdog
+  EEPROM.h                   host stand-in for the Arduino EEPROM library
   test_harness.h             CHECK, CHECK_EQ, CHECK_NEAR
+  kinematics.h               differential drive model for the simulator
+  track.h                    course geometry and a reflectance sensor model
   test_motors.cpp            clamping, direction, stop
   test_sensors.cpp           single-pass read, calibration, line position
   test_pid.cpp               anti-windup, clamping, derivative behaviour
   test_navigator.cpp         state transitions and turn exits
+  test_battery.cpp           compensation clamping across every ADC code
+  test_encoders.cpp          counting, guarded reads, geometry
+  test_buttons.cpp           debouncing and edge detection
+  test_calibration_store.cpp record validation and write endurance
+  test_simulation.cpp        the firmware driven around a modelled course
   run_tests.sh               compiles and runs every test/test_*.cpp
 .github/workflows/ci.yml     sketch compile and host test suite
 README.md
@@ -233,8 +245,19 @@ advances a virtual clock by one microsecond per `digitalRead()` and trips a
 watchdog after a large number of reads, so an unbounded firmware read loop
 fails an assertion instead of hanging the suite.
 
-These tests cover the pure logic only. They say nothing about motor behaviour,
-sensor response or anything else that depends on the physical robot.
+Most of these cover pure logic. `test_simulation.cpp` goes further: it drives
+the real sensor, motor and navigator classes around a modelled course, feeding
+track geometry into the virtual pins and the commanded PWM into a differential
+drive model. That is enough to answer whether the robot follows a straight,
+takes a corner, crosses a junction, recovers from a gap and completes a lap,
+none of which a unit test can reach. It found the two defects fixed alongside
+it: a line reported on blank floor, and a joining state that never gave up.
+
+It remains a model. It cannot see wheel slip, motor mismatch, gearbox
+backlash, battery sag, sensor noise, ambient light or ride height, and its
+three least certain numbers are the free wheel speed, the PWM deadband and the
+sensor lead ahead of the axle. A green run is evidence about the state machine
+and the control arithmetic, and no evidence at all about the robot.
 
 ## Contributing
 
