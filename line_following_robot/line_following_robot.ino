@@ -41,6 +41,10 @@ float weightedMeasurement() {
 
   unsigned long sum = leftSensorReading + rightSensorReading;
 
+  // with both sensors off the line the sum is zero, and dividing by it
+  // produced a NaN steering term that propagated straight into the PWM
+  if (sum == 0) return 0.0;
+
   float leftNormalized = (float)leftSensorReading / sum;
   float rightNormalized = (float)rightSensorReading / sum;
 
