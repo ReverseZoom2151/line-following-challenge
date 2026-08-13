@@ -184,6 +184,13 @@ tuned by editing logic. See [TUNING.md](TUNING.md) for the bench procedure,
 which assumes the wheels are off the ground and works up from motor polarity
 through calibration to the PID gains.
 
+Setting `BENCH_MODE` to 1 in that file builds a diagnostic firmware instead of
+the normal one: it opens the serial port, drives each motor primitive in turn
+so polarity can be checked by eye, runs a calibration sweep and prints the
+per-sensor bounds it recorded. It blocks throughout and never enters the state
+machine, so it belongs on a stand rather than on a course. The normal build
+carries none of it.
+
 ## Repository layout
 
 ```text

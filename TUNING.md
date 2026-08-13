@@ -32,6 +32,11 @@ document asks you to edit logic. The constants referenced here are:
 | `TURN_TIMEOUT_MS` | 1200 | Maximum time spent in a turn state |
 | `TURN_SETTLE_MS` | 150 | How long a turn ignores the line it started on |
 | `REDISCOVER_TIMEOUT_MS` | 2000 | Maximum time spent hunting for a lost line |
+| `MIN_CALIBRATION_SPAN` | 20 | Narrowest span accepted before calibration is rejected |
+| `JUNCTION_CONFIRM_SAMPLES` | 2 | Consecutive sightings before a junction is acted on |
+| `JOIN_HITS_REQUIRED` | 2 | Line sightings needed to commit to following |
+| `JOIN_DEBOUNCE_MS` | 200 | Minimum gap between those sightings |
+| `BENCH_MODE` | 0 | Build the diagnostic firmware instead of the normal one |
 
 ### Why the integral and derivative gains ship at zero
 
@@ -61,8 +66,16 @@ and keep the USB cable clear of the wheels.
 
 ## 2. Verify motor polarity and direction
 
+Steps 2 and 3 need the robot to do things the normal firmware never does on
+its own: drive on command, and print what it recorded. Build the diagnostic
+firmware for them. Set `BENCH_MODE` to 1 in `config.h`, upload, and open the
+serial monitor at 9600 baud. On upload the robot will drive forwards for two
+seconds, spin left, spin right, then run a calibration sweep and print the
+result. Set `BENCH_MODE` back to 0 before any run on a course: bench mode
+blocks and never enters the state machine.
+
 Before anything reads a sensor, confirm the motors do what they are told.
-Drive `driveStraight(BASE_SPEED_PWM)` and watch both wheels.
+The first phase drives `driveStraight(BASE_SPEED_PWM)`. Watch both wheels.
 
 - Both wheels must rotate in the forward direction. If both run backwards, the
   direction sense is inverted globally; if one runs backwards, that channel's
@@ -86,13 +99,14 @@ window, every sensor sees both a black line and a white surface.
   five sensors, including DN1 and DN5, pass over black and over white. A single
   slow sweep in each direction is usually enough. Rotating in place over the
   line works too, provided the far sensors actually cross it.
-- Afterwards, inspect the recorded minima and maxima for each sensor. Call
-  `sensors.reportCalibration()` once from `setup()` after the sweep, or from a
-  serial command, and read the result over the serial monitor at 9600 baud. It
-  prints one comma-separated row per sensor: index, minimum, maximum, span.
-  `calibrationMin(i)` and `calibrationMax(i)` return the same values if you
-  would rather format them yourself. Do not call either from `loop()`:
-  transmitting takes long enough to blind the robot between readings.
+- The bench firmware from step 2 runs the sweep for `CALIBRATION_MS` and then
+  prints the result itself: one comma-separated row per sensor giving index,
+  minimum, maximum and span, followed by a warning line if the calibration was
+  rejected outright. Sweep the robot by hand while that phase is running.
+- `calibrationMin(i)` and `calibrationMax(i)` return the same values if you
+  want to format them differently. Do not call either from `loop()` in a normal
+  build: transmitting takes long enough to blind the robot between readings,
+  and the normal build does not open the serial port at all.
 - Sanity checks: the maximum must be meaningfully above the minimum for every
   sensor (a near-equal pair means that sensor never saw one of the two
   surfaces); no maximum should sit at `SENSOR_TIMEOUT_US`, which means the
