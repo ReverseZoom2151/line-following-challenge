@@ -80,4 +80,26 @@ static const uint8_t JUNCTION_CONFIRM_SAMPLES = 2;
 static const uint8_t  JOIN_HITS_REQUIRED = 2;
 static const uint32_t JOIN_DEBOUNCE_MS   = 200;
 
+// ------------------------------------------------------------- bench mode
+
+// Set to 1 to build the diagnostic firmware that the procedure in TUNING.md
+// assumes: it opens the serial port, walks the motors through a polarity
+// check, runs a calibration sweep and prints the resulting per-sensor bounds,
+// then stays stopped. Set back to 0 for normal operation.
+//
+// The normal build carries none of it. Note that the cost is not memory: the
+// 32U4 links its USB serial stack either way, so the bench build measures
+// 6986 bytes of flash and 240 bytes of RAM against 8670 and 243 for the
+// normal one, the difference being the navigator rather than Serial. The
+// reason to gate it is behavioural. Bench mode drives the motors on a fixed
+// script and blocks while it does so, which is safe on a stand and dangerous
+// on a course.
+//
+// It is the one place in this firmware where blocking is acceptable: a
+// scripted sequence for a human to watch, not a control loop.
+#define BENCH_MODE 0
+
+static const long     BENCH_SERIAL_BAUD = 9600;
+static const uint32_t BENCH_MOVE_MS     = 2000;  // how long each motor test runs
+
 #endif
