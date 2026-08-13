@@ -19,6 +19,21 @@ static int sensorPin(int i) {
   return pins[i];
 }
 
+// Builds a snapshot directly from normalised values, so the interpretation
+// tests are not entangled with pin timing.
+static SensorSnapshot snap(uint16_t a, uint16_t b, uint16_t c, uint16_t d,
+                           uint16_t e) {
+  SensorSnapshot s = {};
+  const uint16_t v[NUM_SENSORS] = { a, b, c, d, e };
+  for (int i = 0; i < NUM_SENSORS; i++) {
+    s.normalised[i] = v[i];
+    s.raw[i] = v[i];
+    s.timedOut[i] = false;
+  }
+  s.timestampMicros = 0;
+  return s;
+}
+
 int main() {
   printf("sensors\n");
 
@@ -242,6 +257,81 @@ int main() {
     for (int i = 0; i < NUM_SENSORS; i++) {
       CHECK(s.normalised[i] <= NORMALISED_MAX);
     }
+  }
+
+  {
+    TEST("linePosition is centred, signed and bounded");
+    LineSensor_c sensors;
+    bool found = false;
+
+    SensorSnapshot centred = snap(0, 0, 900, 0, 0);
+    CHECK_NEAR(sensors.linePosition(centred, found), 0.0, 0.001);
+    CHECK(found);
+
+    // symmetric straddle of the centre is still centred
+    SensorSnapshot straddle = snap(0, 500, 800, 500, 0);
+    CHECK_NEAR(sensors.linePosition(straddle, found), 0.0, 0.001);
+
+    SensorSnapshot left = snap(0, 900, 200, 0, 0);
+    float lp = sensors.linePosition(left, found);
+    CHECK(found);
+    CHECK(lp < 0.0);
+    CHECK(lp >= -1.0);
+
+    SensorSnapshot right = snap(0, 0, 200, 900, 0);
+    float rp = sensors.linePosition(right, found);
+    CHECK(rp > 0.0);
+    CHECK(rp <= 1.0);
+
+    // mirrored inputs give mirrored outputs
+    CHECK_NEAR(lp, -rp, 0.001);
+
+    // the extremes saturate exactly at the ends of the range
+    SensorSnapshot hardLeft = snap(1000, 0, 0, 0, 0);
+    CHECK_NEAR(sensors.linePosition(hardLeft, found), -1.0, 0.001);
+    SensorSnapshot hardRight = snap(0, 0, 0, 0, 1000);
+    CHECK_NEAR(sensors.linePosition(hardRight, found), 1.0, 0.001);
+  }
+
+  {
+    TEST("linePosition reports no line rather than dividing by zero");
+    LineSensor_c sensors;
+    bool found = true;
+
+    SensorSnapshot blank = snap(0, 0, 0, 0, 0);
+    float p = sensors.linePosition(blank, found);
+
+    CHECK(!found);
+    CHECK_NEAR(p, 0.0, 0.001);
+    CHECK(p == p);  // not NaN
+
+    // just under the presence threshold also counts as no line
+    found = true;
+    SensorSnapshot faint = snap(10, 10, 10, 10, 10);
+    CHECK_NEAR(sensors.linePosition(faint, found), 0.0, 0.001);
+    CHECK(!found);
+  }
+
+  {
+    TEST("activation, onLine and the far sensor helpers");
+    LineSensor_c sensors;
+
+    SensorSnapshot s = snap(700, 100, 950, 100, 50);
+    CHECK_EQ(sensors.activation(s), 950);
+    CHECK(sensors.onLine(s));
+    CHECK(sensors.farLeftActive(s));
+    CHECK(!sensors.farRightActive(s));
+
+    // a far sensor alone is a junction cue, not the line being followed
+    SensorSnapshot edge = snap(0, 0, 0, 0, 800);
+    CHECK(!sensors.onLine(edge));
+    CHECK(sensors.farRightActive(edge));
+    CHECK(!sensors.farLeftActive(edge));
+
+    SensorSnapshot cross = snap(900, 300, 900, 300, 900);
+    CHECK(sensors.farLeftActive(cross));
+    CHECK(sensors.farRightActive(cross));
+    CHECK(sensors.onLine(cross));
   }
 
   return testSummary("sensors");

@@ -175,6 +175,70 @@ class LineSensor_c {
 
     bool isCalibrated() const { return calibrated; }
 
+    // ------------------------------------------------------ interpretation
+
+    // Weighted mean of all five sensors, mapped to [-1, +1], where negative
+    // means the line lies left of centre. Using all five rather than only
+    // DN2 and DN4 keeps the estimate meaningful once the line drifts out
+    // towards a far sensor, instead of saturating.
+    float linePosition(const SensorSnapshot &s, bool &lineFound) const {
+
+      static const int8_t weights[NUM_SENSORS] = { -2, -1, 0, 1, 2 };
+
+      int32_t total = 0;
+      int32_t weighted = 0;
+
+      for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+        total += (int32_t)s.normalised[i];
+        weighted += (int32_t)weights[i] * (int32_t)s.normalised[i];
+      }
+
+      // this is also the divide-by-zero guard: with no line under any sensor
+      // there is no position to report, so no steering demand is invented
+      if (total < (int32_t)LINE_PRESENT_THRESHOLD) {
+        lineFound = false;
+        return 0.0f;
+      }
+
+      lineFound = true;
+
+      // weighted / total lies in [-2, +2]; halving maps it onto [-1, +1]
+      return ((float)weighted / (float)total) * 0.5f;
+
+    }
+
+    // Strongest single response in the snapshot.
+    uint16_t activation(const SensorSnapshot &s) const {
+
+      uint16_t peak = 0;
+
+      for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+        if (s.normalised[i] > peak) peak = s.normalised[i];
+      }
+
+      return peak;
+
+    }
+
+    // True when the line sits under the central three sensors, DN2 to DN4.
+    bool onLine(const SensorSnapshot &s) const {
+
+      for (uint8_t i = 1; i < NUM_SENSORS - 1; i++) {
+        if (s.normalised[i] >= LINE_PRESENT_THRESHOLD) return true;
+      }
+
+      return false;
+
+    }
+
+    bool farLeftActive(const SensorSnapshot &s) const {
+      return s.normalised[0] >= JUNCTION_THRESHOLD;
+    }
+
+    bool farRightActive(const SensorSnapshot &s) const {
+      return s.normalised[NUM_SENSORS - 1] >= JUNCTION_THRESHOLD;
+    }
+
     // reads a line sensor with error checking
     unsigned long readLineSensor(int number) {
 
