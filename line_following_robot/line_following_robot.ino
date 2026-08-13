@@ -114,17 +114,19 @@ void turnLeft() {
   unsigned long rightSensorReading = line_sensors.readLineSensor(3); // DN4
   unsigned long farRightSensorReading = line_sensors.readLineSensor(4); // DN5
 
-  if (farLeftSensorReading >= SENSOR_THRESHOLD && lineDetected()) {
+  // the two cases are tested most specific first, and are exclusive: as a
+  // plain pair of ifs the second was a superset of the first, so both fired
+  // and the robot turned left twice
+  if (farLeftSensorReading >= SENSOR_THRESHOLD && farRightSensorReading >= SENSOR_THRESHOLD && lineDetected()) {
 
-    // executes a sharp left turn for corners (90 degrees)
-    motors.spinLeft(BiasPWM, 250);
-  
-  } 
-  
-  if (farLeftSensorReading >= SENSOR_THRESHOLD && lineDetected() && farRightSensorReading >= SENSOR_THRESHOLD) {
-
+    // clears the junction before committing to the corner
     motors.driveStraight(BiasPWM);
     delay(225);
+    motors.spinLeft(BiasPWM, 250);
+
+  } else if (farLeftSensorReading >= SENSOR_THRESHOLD && lineDetected()) {
+
+    // executes a sharp left turn for corners (90 degrees)
     motors.spinLeft(BiasPWM, 250);
 
   }
