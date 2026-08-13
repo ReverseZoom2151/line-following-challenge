@@ -3,9 +3,21 @@
 
 #include "config.h"
 
+// One reading of all five sensors, taken at a single instant. Passing this
+// around means every decision in a control iteration is made from the same
+// snapshot, rather than from readings taken milliseconds apart.
+struct SensorSnapshot {
+
+  uint16_t raw[NUM_SENSORS];         // discharge time in us, clamped to SENSOR_TIMEOUT_US
+  uint16_t normalised[NUM_SENSORS];  // 0..NORMALISED_MAX, valid once calibrated
+  bool     timedOut[NUM_SENSORS];    // sensor never discharged within the budget
+  uint32_t timestampMicros;          // when the discharge window opened
+
+};
+
 class LineSensor_c {
 
-  private: 
+  private:
 
     uint8_t ls_pins[NUM_SENSORS] = { LS_LEFT_PIN, LS_MIDLEFT_PIN, LS_MIDDLE_PIN, LS_MIDRIGHT_PIN, LS_RIGHT_PIN }; // stores pin numbers for convenient access
 
@@ -13,12 +25,78 @@ class LineSensor_c {
 
     LineSensor_c() {}
 
-    void setupAllLineSensors() {
+    void begin() {
 
-      pinMode(EMIT_PIN, INPUT);  
+      pinMode(EMIT_PIN, INPUT);
       for (uint8_t i = 0; i < NUM_SENSORS; i++) {
         pinMode(ls_pins[i], INPUT);
       }
+
+    }
+
+    // Charges all five sensors, releases them together, then polls until each
+    // has discharged or the budget expires. One emitter pulse, one instant,
+    // and a bounded worst case of SENSOR_TIMEOUT_US for the whole set rather
+    // than per sensor. Deliberately contains no Serial output: this is a
+    // timing-critical loop and printing would distort every reading.
+    void readAll(SensorSnapshot &out) {
+
+      pinMode(EMIT_PIN, OUTPUT);
+      digitalWrite(EMIT_PIN, HIGH);
+
+      for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+        pinMode(ls_pins[i], OUTPUT);
+        digitalWrite(ls_pins[i], HIGH);
+      }
+
+      delayMicroseconds(10);  // charges the capacitors
+
+      bool done[NUM_SENSORS];
+
+      for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+        out.raw[i] = 0;
+        out.normalised[i] = 0;
+        out.timedOut[i] = false;
+        done[i] = false;
+        pinMode(ls_pins[i], INPUT);  // releases, discharge begins
+      }
+
+      uint32_t start_time = micros();
+      out.timestampMicros = start_time;
+
+      uint8_t remaining = NUM_SENSORS;
+
+      while (remaining > 0) {
+
+        uint32_t elapsed = micros() - start_time;
+
+        if (elapsed > SENSOR_TIMEOUT_US) elapsed = SENSOR_TIMEOUT_US;
+
+        for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+
+          if (done[i]) continue;
+
+          if (digitalRead(ls_pins[i]) == LOW) {
+
+            out.raw[i] = (uint16_t)elapsed;
+            done[i] = true;
+            remaining--;
+
+          } else if (elapsed >= SENSOR_TIMEOUT_US) {
+
+            // never discharged: treat as the darkest reading the budget allows
+            out.raw[i] = SENSOR_TIMEOUT_US;
+            out.timedOut[i] = true;
+            done[i] = true;
+            remaining--;
+
+          }
+
+        }
+
+      }
+
+      pinMode(EMIT_PIN, INPUT);  // emitters always off on the way out
 
     }
 

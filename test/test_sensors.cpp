@@ -15,10 +15,10 @@ int main() {
   printf("sensors\n");
 
   {
-    TEST("setup leaves the emitter off and the sensors as inputs");
+    TEST("begin leaves the emitter off and the sensors as inputs");
     mockReset();
     LineSensor_c sensors;
-    sensors.setupAllLineSensors();
+    sensors.begin();
 
     CHECK_EQ(mockPins[EMIT_PIN].mode, INPUT);
     CHECK_EQ(mockPins[LS_LEFT_PIN].mode, INPUT);
@@ -32,7 +32,7 @@ int main() {
     TEST("a normal read returns the discharge time");
     mockReset();
     LineSensor_c sensors;
-    sensors.setupAllLineSensors();
+    sensors.begin();
     mockSetDischarge(LS_MIDDLE_PIN, 500);
 
     unsigned long reading = sensors.readLineSensor(2);
@@ -45,7 +45,7 @@ int main() {
     TEST("a darker surface reads as a longer discharge time");
     mockReset();
     LineSensor_c sensors;
-    sensors.setupAllLineSensors();
+    sensors.begin();
     mockSetDischarge(LS_MIDLEFT_PIN, 200);
     mockSetDischarge(LS_MIDRIGHT_PIN, 1400);
 
@@ -61,7 +61,7 @@ int main() {
     TEST("the emitter is switched back off after a read");
     mockReset();
     LineSensor_c sensors;
-    sensors.setupAllLineSensors();
+    sensors.begin();
     mockSetDischarge(LS_LEFT_PIN, 300);
 
     sensors.readLineSensor(0);
@@ -76,7 +76,7 @@ int main() {
     TEST("a sensor that never discharges times out instead of hanging");
     mockReset();
     LineSensor_c sensors;
-    sensors.setupAllLineSensors();
+    sensors.begin();
     mockSetNeverDischarges(LS_MIDDLE_PIN);
 
     unsigned long reading = sensors.readLineSensor(2);
@@ -92,11 +92,76 @@ int main() {
     TEST("an out of range index returns zero, below every threshold");
     mockReset();
     LineSensor_c sensors;
-    sensors.setupAllLineSensors();
+    sensors.begin();
 
     CHECK_EQ(sensors.readLineSensor(9), 0);
     CHECK_EQ(sensors.readLineSensor(-1), 0);
     CHECK(sensors.readLineSensor(5) < 1000);
+  }
+
+  {
+    TEST("readAll returns all five sensors from one pass");
+    mockReset();
+    LineSensor_c sensors;
+    sensors.begin();
+    mockSetDischarge(LS_LEFT_PIN, 400);
+    mockSetDischarge(LS_MIDLEFT_PIN, 500);
+    mockSetDischarge(LS_MIDDLE_PIN, 600);
+    mockSetDischarge(LS_MIDRIGHT_PIN, 700);
+    mockSetDischarge(LS_RIGHT_PIN, 800);
+
+    SensorSnapshot s;
+    uint32_t before = micros();
+    sensors.readAll(s);
+    uint32_t cost = micros() - before;
+
+    CHECK(!mockWatchdogTripped);
+    CHECK_NEAR(s.raw[0], 400, 20);
+    CHECK_NEAR(s.raw[1], 500, 20);
+    CHECK_NEAR(s.raw[2], 600, 20);
+    CHECK_NEAR(s.raw[3], 700, 20);
+    CHECK_NEAR(s.raw[4], 800, 20);
+
+    for (int i = 0; i < NUM_SENSORS; i++) CHECK(!s.timedOut[i]);
+
+    // one pass costs about the slowest sensor, not the sum of all five,
+    // which is what reading them one at a time used to cost
+    CHECK(cost < 1500);
+    CHECK(s.timestampMicros >= before);
+  }
+
+  {
+    TEST("readAll flags a sensor that never discharges and keeps the rest");
+    mockReset();
+    LineSensor_c sensors;
+    sensors.begin();
+    mockSetDischarge(LS_LEFT_PIN, 300);
+    mockSetNeverDischarges(LS_MIDDLE_PIN);
+    mockSetDischarge(LS_RIGHT_PIN, 350);
+
+    SensorSnapshot s;
+    sensors.readAll(s);
+
+    CHECK(!mockWatchdogTripped);
+    CHECK(s.timedOut[2]);
+    CHECK_EQ(s.raw[2], SENSOR_TIMEOUT_US);
+    CHECK(!s.timedOut[0]);
+    CHECK(!s.timedOut[4]);
+    CHECK_NEAR(s.raw[0], 300, 20);
+    CHECK_NEAR(s.raw[4], 350, 20);
+  }
+
+  {
+    TEST("readAll switches the emitter back off");
+    mockReset();
+    LineSensor_c sensors;
+    sensors.begin();
+    mockSetDischarge(LS_MIDDLE_PIN, 200);
+
+    SensorSnapshot s;
+    sensors.readAll(s);
+
+    CHECK_EQ(mockPins[EMIT_PIN].mode, INPUT);
   }
 
   return testSummary("sensors");

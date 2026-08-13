@@ -287,7 +287,7 @@ void updateState() {
 void setup() {
 
   motors.initialise();
-  line_sensors.setupAllLineSensors();
+  line_sensors.begin();
 
   Serial.begin(9600);
   delay(1500);
