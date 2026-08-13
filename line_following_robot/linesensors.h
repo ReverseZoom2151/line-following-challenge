@@ -21,6 +21,33 @@ class LineSensor_c {
 
     uint8_t ls_pins[NUM_SENSORS] = { LS_LEFT_PIN, LS_MIDLEFT_PIN, LS_MIDDLE_PIN, LS_MIDRIGHT_PIN, LS_RIGHT_PIN }; // stores pin numbers for convenient access
 
+    // Per-sensor calibration. The five sensors do not respond identically:
+    // component tolerance and ride height mean the same surface reads
+    // differently on each, so a single shared threshold biases the steering.
+    uint16_t min_raw[NUM_SENSORS];
+    uint16_t max_raw[NUM_SENSORS];
+    bool calibrated = false;
+
+    // A span narrower than this means the sensor never saw both surfaces, so
+    // the calibration is not trustworthy.
+    static const uint16_t MIN_CALIBRATION_SPAN = 20;
+
+    // Maps one raw reading onto 0..NORMALISED_MAX, where larger means darker.
+    // Falls back to the full timeout range until a calibration exists, so an
+    // uncalibrated robot still steers rather than reading all zeroes.
+    uint16_t normaliseOne(uint8_t i, uint16_t raw) const {
+
+      uint16_t lo = calibrated ? min_raw[i] : 0;
+      uint16_t hi = calibrated ? max_raw[i] : SENSOR_TIMEOUT_US;
+
+      if (hi <= lo) return 0;  // divide-by-zero guard, never a NaN
+      if (raw <= lo) return 0;
+      if (raw >= hi) return NORMALISED_MAX;
+
+      return (uint16_t)(((uint32_t)(raw - lo) * NORMALISED_MAX) / (uint32_t)(hi - lo));
+
+    }
+
   public:
 
     LineSensor_c() {}
@@ -98,7 +125,55 @@ class LineSensor_c {
 
       pinMode(EMIT_PIN, INPUT);  // emitters always off on the way out
 
+      for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+        out.normalised[i] = normaliseOne(i, out.raw[i]);
+      }
+
     }
+
+    // --------------------------------------------------------- calibration
+
+    // Drive the robot across both the line and the background between
+    // beginCalibration() and endCalibration(), feeding every snapshot to
+    // updateCalibration().
+    void beginCalibration() {
+
+      calibrated = false;
+
+      for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+        min_raw[i] = SENSOR_TIMEOUT_US;
+        max_raw[i] = 0;
+      }
+
+    }
+
+    void updateCalibration(const SensorSnapshot &s) {
+
+      for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+        if (s.raw[i] < min_raw[i]) min_raw[i] = s.raw[i];
+        if (s.raw[i] > max_raw[i]) max_raw[i] = s.raw[i];
+      }
+
+    }
+
+    void endCalibration() {
+
+      // only accepts the calibration if every sensor saw a usable spread,
+      // otherwise the fallback range stays in use
+      for (uint8_t i = 0; i < NUM_SENSORS; i++) {
+
+        if (max_raw[i] < min_raw[i] + MIN_CALIBRATION_SPAN) {
+          calibrated = false;
+          return;
+        }
+
+      }
+
+      calibrated = true;
+
+    }
+
+    bool isCalibrated() const { return calibrated; }
 
     // reads a line sensor with error checking
     unsigned long readLineSensor(int number) {

@@ -11,6 +11,14 @@
 
 #include "linesensors.h"
 
+// The five sensor pins in DN1..DN5 order, for tests that sweep all of them.
+static int sensorPin(int i) {
+  static const int pins[NUM_SENSORS] = { LS_LEFT_PIN, LS_MIDLEFT_PIN,
+                                         LS_MIDDLE_PIN, LS_MIDRIGHT_PIN,
+                                         LS_RIGHT_PIN };
+  return pins[i];
+}
+
 int main() {
   printf("sensors\n");
 
@@ -162,6 +170,78 @@ int main() {
     sensors.readAll(s);
 
     CHECK_EQ(mockPins[EMIT_PIN].mode, INPUT);
+  }
+
+  {
+    TEST("normalisation falls back to the full range before calibration");
+    mockReset();
+    LineSensor_c sensors;
+    sensors.begin();
+    mockSetDischarge(LS_MIDDLE_PIN, 1250);  // half of SENSOR_TIMEOUT_US
+
+    SensorSnapshot s;
+    sensors.readAll(s);
+
+    CHECK(!sensors.isCalibrated());
+    CHECK_NEAR(s.normalised[2], 500, 20);
+  }
+
+  {
+    TEST("calibration rescales each sensor onto its own span");
+    mockReset();
+    LineSensor_c sensors;
+    sensors.begin();
+
+    // sweeps a light surface then a dark one across all five
+    sensors.beginCalibration();
+    for (int i = 0; i < NUM_SENSORS; i++) mockSetDischarge(sensorPin(i), 200);
+    SensorSnapshot s;
+    sensors.readAll(s);
+    sensors.updateCalibration(s);
+    for (int i = 0; i < NUM_SENSORS; i++) mockSetDischarge(sensorPin(i), 1200);
+    sensors.readAll(s);
+    sensors.updateCalibration(s);
+    sensors.endCalibration();
+
+    CHECK(sensors.isCalibrated());
+
+    // mid-span reads as mid-scale, and the extremes saturate cleanly
+    for (int i = 0; i < NUM_SENSORS; i++) mockSetDischarge(sensorPin(i), 700);
+    sensors.readAll(s);
+    CHECK_NEAR(s.normalised[0], 500, 40);
+    CHECK_NEAR(s.normalised[4], 500, 40);
+
+    for (int i = 0; i < NUM_SENSORS; i++) mockSetDischarge(sensorPin(i), 100);
+    sensors.readAll(s);
+    CHECK_EQ(s.normalised[2], 0);
+
+    for (int i = 0; i < NUM_SENSORS; i++) mockSetDischarge(sensorPin(i), 2000);
+    sensors.readAll(s);
+    CHECK_EQ(s.normalised[2], NORMALISED_MAX);
+  }
+
+  {
+    TEST("a degenerate calibration is rejected and does not divide by zero");
+    mockReset();
+    LineSensor_c sensors;
+    sensors.begin();
+
+    // every sample identical: the sensors never saw both surfaces
+    sensors.beginCalibration();
+    for (int i = 0; i < NUM_SENSORS; i++) mockSetDischarge(sensorPin(i), 600);
+    SensorSnapshot s;
+    sensors.readAll(s);
+    sensors.updateCalibration(s);
+    sensors.readAll(s);
+    sensors.updateCalibration(s);
+    sensors.endCalibration();
+
+    CHECK(!sensors.isCalibrated());
+
+    sensors.readAll(s);
+    for (int i = 0; i < NUM_SENSORS; i++) {
+      CHECK(s.normalised[i] <= NORMALISED_MAX);
+    }
   }
 
   return testSummary("sensors");
