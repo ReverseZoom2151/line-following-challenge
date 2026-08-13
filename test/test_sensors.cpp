@@ -278,13 +278,12 @@ int main() {
     CHECK_EQ(sensors.calibrationMin(0), 200);
     CHECK_EQ(sensors.calibrationMax(0), 1800);
 
-    // and the restored bounds actually drive normalisation
-    SensorSnapshot s;
-    for (uint8_t i = 0; i < NUM_SENSORS; i++) s.raw[i] = 1000;
-    for (uint8_t i = 0; i < NUM_SENSORS; i++) {
-      s.normalised[i] = sensors.calibrationMax(i) > sensors.calibrationMin(i) ? 1 : 0;
-    }
-    CHECK(sensors.calibrationMax(2) > sensors.calibrationMin(2));
+    // and the restored bounds actually drive normalisation: a reading at the
+    // stored minimum is full white, one at the maximum is full black, and the
+    // midpoint lands near the middle of the scale.
+    CHECK_EQ(sensors.normalise(0, 200), 0);
+    CHECK_EQ(sensors.normalise(0, 1800), NORMALISED_MAX);
+    CHECK_NEAR(sensors.normalise(0, 1000), NORMALISED_MAX / 2, 20);
   }
 
   {

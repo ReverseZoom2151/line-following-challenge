@@ -57,6 +57,13 @@ class LineSensor_c {
       }
     }
 
+    // Maps a raw discharge time onto the calibrated 0..NORMALISED_MAX scale.
+    // Exposed alongside the calibration bounds so a bench session can check
+    // what a given reading will actually become, rather than inferring it.
+    uint16_t normalise(uint8_t i, uint16_t raw) const {
+      return (i < NUM_SENSORS) ? normaliseOne(i, raw) : 0;
+    }
+
     // Calibration bounds, exposed so the sweep can actually be checked on a
     // bench. Without these the tuning procedure asks the operator to inspect
     // numbers that nothing can print. A sensor whose minimum and maximum sit
